@@ -2,7 +2,7 @@ using ScriptSolution;
 using ScriptSolution.Indicators;
 using System;
 
-namespace ETSdebugDll
+namespace Class1
 {
     public class Class1: Script
     {

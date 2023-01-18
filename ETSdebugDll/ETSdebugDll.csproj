@@ -8,20 +8,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="ScriptSolution">
-      <HintPath>C:\Программирование\Установочник Net6\ScriptSolution.dll</HintPath>
-    </Reference>
-    <Reference Include="SourceEts">
-      <HintPath>C:\Программирование\Установочник Net6\SourceEts.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
     <Folder Include="Stat\" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="iTextSharp" Version="5.5.13.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="ScriptSolution">
+      <HintPath>..\..\..\ETS 2.0 Net6.0\ScriptSolution.dll</HintPath>
+    </Reference>
+    <Reference Include="SourceEts">
+      <HintPath>..\..\..\ETS 2.0 Net6.0\SourceEts.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

@@ -12,8 +12,9 @@ using iTextSharp.text;
 using iTextSharp.text.pdf;
 using System.IO;
 using System.Data;
+using System.Windows.Media;
 
-namespace ETSdebugDll
+namespace EstimationStat
 {
     public class UserParam
     {
@@ -51,12 +52,17 @@ namespace ETSdebugDll
                 est.drawDown = stat.MaxDrownDown;
                 _estStat.Add(est);
             }
+
+            _passCount++;
+
+            if (_passCount >= 5)
+                SaveResultPDF("out.pdf");
         }
 
         void SaveResultPDF( string fNameFull )
         {
             iTextSharp.text.Document doc = new iTextSharp.text.Document();
-            PdfWriter.GetInstance(doc, new FileStream("pdfTables.pdf", FileMode.Create));
+            PdfWriter.GetInstance(doc, new FileStream( fNameFull, FileMode.Create));
             doc.Open();
             //BaseFont baseFont = BaseFont.CreateFont("C:\\Windows\\Fonts\\arial.ttf", BaseFont.IDENTITY_H, BaseFont.NOT_EMBEDDED);
             //iTextSharp.text.Font font = new iTextSharp.text.Font(baseFont, iTextSharp.text.Font.DEFAULTSIZE, iTextSharp.text.Font.NORMAL);
@@ -75,10 +81,28 @@ namespace ETSdebugDll
             cell.BackgroundColor = iTextSharp.text.BaseColor.YELLOW;
             table.AddCell(cell);
 
+            cell = new PdfPCell(new Phrase(new Phrase("Avg. Deal")));
+            cell.BackgroundColor = iTextSharp.text.BaseColor.YELLOW;
+            table.AddCell(cell);
+
+            cell = new PdfPCell(new Phrase(new Phrase("Deal Count")));
+            cell.BackgroundColor = iTextSharp.text.BaseColor.YELLOW;
+            table.AddCell(cell);
+            
+            for ( int i=0; i<_estStat.Count; i++ )
+            {
+                table.AddCell(new Phrase(_estStat[i].profit.ToString()));
+                table.AddCell(new Phrase(_estStat[i].drawDown.ToString()));
+                table.AddCell(new Phrase(_estStat[i].recoveryFactor.ToString()));
+                table.AddCell(new Phrase(_estStat[i].averageDeal.ToString()));
+                table.AddCell(new Phrase(_estStat[i].dealCount.ToString()));
+            }
+
+            doc.Add(table);
             doc.Close();
- 
         }
-    void SaveResultCSV(string fNameFull, string delimiter )
+
+        void SaveResultCSV(string fNameFull, string delimiter )
         {
 
         }
@@ -88,7 +112,7 @@ namespace ETSdebugDll
             DesParamStratetgy.Version = "2";
             DesParamStratetgy.DateRelease = "16.01.2023";
             DesParamStratetgy.DateChange = "17.01.2023";
-            DesParamStratetgy.Description = "вариант 1, смотрим";
+            DesParamStratetgy.Description = "";
             DesParamStratetgy.Change = "";
             DesParamStratetgy.NameStrategy = "EstimationStat";
         }
