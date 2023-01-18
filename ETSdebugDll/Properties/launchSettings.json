@@ -10,6 +10,10 @@
     "Профиль 2": {
       "commandName": "Executable",
       "executablePath": "C:\\Программирование\\Установочник Net6\\TerminalETS.exe"
+    },
+    "VCH-ETS": {
+      "commandName": "Executable",
+      "executablePath": "C:\\ETS 2.0 Net6.0\\TerminalETS.exe"
     }
   }
 }
