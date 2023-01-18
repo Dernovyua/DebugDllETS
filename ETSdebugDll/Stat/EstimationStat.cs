@@ -13,6 +13,8 @@ using iTextSharp.text.pdf;
 using System.IO;
 using System.Data;
 using System.Windows.Media;
+using System.Windows.Documents;
+using System.Diagnostics.SymbolStore;
 
 namespace EstimationStat
 {
@@ -36,6 +38,7 @@ namespace EstimationStat
     {
         int _passCount = 0;
         List<EstimationStat> _estStat;
+        string[] _statNames = { "Profit", "DD", "Recovery", "Avg. Deal", "Deal Count" };
 
         public override void SetUserStatisticParamOnEndTest(Statistic stat)
         {
@@ -56,7 +59,7 @@ namespace EstimationStat
             _passCount++;
 
             if (_passCount >= 5)
-                SaveResultPDF("C:\\DOCS\\out.pdf");
+                SaveResultCSV("C:\\DOCS\\out.csv", ";");
         }
 
         void SaveResultPDF( string fNameFull )
@@ -104,12 +107,35 @@ namespace EstimationStat
 
         void SaveResultCSV(string fNameFull, string delimiter )
         {
+            using (StreamWriter sw = new StreamWriter(fNameFull, false, System.Text.Encoding.Default))
+            {
+                string str = "";
 
+                for( int i = 0; i < _statNames.Length; i++ )
+                {
+                    str += _statNames[i];
+
+                    if( i < _statNames.Length - 1)
+                        str += delimiter;
+                }
+                sw.WriteLine(str);
+
+                for(int i=0; i<_estStat.Count; i++)
+                {
+                    str = _estStat[i].profit.ToString() + delimiter;
+                    str += _estStat[i].drawDown.ToString() + delimiter;
+                    str += _estStat[i].recoveryFactor.ToString() + delimiter;
+                    str += _estStat[i].averageDeal.ToString() + delimiter;
+                    str += _estStat[i].dealCount.ToString();
+                    sw.WriteLine(str);
+                }
+                sw.Close();
+            }
         }
 
         public override void GetAttributes()
         {
-            DesParamStratetgy.Version = "2";
+            DesParamStratetgy.Version = "1";
             DesParamStratetgy.DateRelease = "16.01.2023";
             DesParamStratetgy.DateChange = "17.01.2023";
             DesParamStratetgy.Description = "";
