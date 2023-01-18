@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <BaseOutputPath>C:\Программирование\Установочник Net6\User Script Dll Debug</BaseOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="ScriptSolution">
+      <HintPath>C:\Программирование\Установочник Net6\ScriptSolution.dll</HintPath>
+    </Reference>
+    <Reference Include="SourceEts">
+      <HintPath>C:\Программирование\Установочник Net6\SourceEts.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

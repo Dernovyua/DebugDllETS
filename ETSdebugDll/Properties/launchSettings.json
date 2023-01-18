@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "ETSdebugDll": {
+      "commandName": "Project"
+    },
+    "Профиль 1": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Программирование\\Установочник Net6\\TerminalETS.exe"
+    },
+    "Профиль 2": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Программирование\\Установочник Net6\\TerminalETS.exe"
+    }
+  }
+}
