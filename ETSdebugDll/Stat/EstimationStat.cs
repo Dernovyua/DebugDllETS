@@ -56,7 +56,7 @@ namespace EstimationStat
             _passCount++;
 
             if (_passCount >= 5)
-                SaveResultPDF("out.pdf");
+                SaveResultPDF("C:\\DOCS\\out.pdf");
         }
 
         void SaveResultPDF( string fNameFull )
