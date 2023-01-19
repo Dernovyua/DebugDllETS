@@ -18,7 +18,7 @@ using System.Diagnostics.SymbolStore;
 using System.Windows.Controls;
 using ScriptSolution.Model;
 
-namespace EstimationStat
+namespace EstimationStatNorm
 {
     public class UserParam
     {
@@ -33,6 +33,8 @@ namespace EstimationStat
         public double recoveryFactor = 0; // Факттор восстановления
         public double averageDeal = 0; // Средняя прибыль на сделку
         public double dealCount = 0; // Количество сделок 
+        public double total = 0; // Общий критерий оценки
+        public double normTotal = 0; // Нормированный Общий критерий оценки
         public List<UserParam> userParam;// Параметры оптимизации
     };
 
@@ -47,8 +49,6 @@ namespace EstimationStat
         /// </summary>
         public override void StartOptimization()
         {
-            //base.StartOptimization();
-
             if (_estStat == null)
                 _estStat = new List<EstimationStat>();
             else
@@ -91,61 +91,16 @@ namespace EstimationStat
             }
             _passCount++;
         }
-
+        /// <summary>
+        /// Рсчет нормализованного фактора оценки
+        /// </summary>
+        
         /// <summary>
         ///  Окончание цикла оптимизации
         /// </summary>
         public override void EndOtimizationAll()
         {
-            //base.EndOtimizationAll();
             SaveResultCSV("C:\\DOCS\\out.csv", ";");
-        }
-
-        /// <summary>
-        /// Пример сохрание табличных данных в PDF 
-        /// </summary>
-        void SaveResultPDF( string fNameFull )
-        {
-            var document = new iTextSharp.text.Document();
-            using (var writer = PdfWriter.GetInstance(document, new FileStream( fNameFull, FileMode.Create)))
-            {
-                document.Open();
-                PdfPTable table = new PdfPTable(5);
-                // Добавляем заголовки 
-                PdfPCell cell = new PdfPCell(new Phrase(new Phrase("Profit")));
-                cell.BackgroundColor = iTextSharp.text.BaseColor.YELLOW;
-                table.AddCell(cell);
-
-                cell = new PdfPCell(new Phrase(new Phrase("Max DD")));
-                cell.BackgroundColor = iTextSharp.text.BaseColor.YELLOW;
-                table.AddCell(cell);
-
-                cell = new PdfPCell(new Phrase(new Phrase("Recovery")));
-                cell.BackgroundColor = iTextSharp.text.BaseColor.YELLOW;
-                table.AddCell(cell);
-
-                cell = new PdfPCell(new Phrase(new Phrase("Avg. Deal")));
-                cell.BackgroundColor = iTextSharp.text.BaseColor.YELLOW;
-                table.AddCell(cell);
-
-                cell = new PdfPCell(new Phrase(new Phrase("Deal Count")));
-                cell.BackgroundColor = iTextSharp.text.BaseColor.YELLOW;
-                table.AddCell(cell);
-
-                for (int i = 0; i < _estStat.Count; i++)
-                {
-                    table.AddCell(new Phrase(_estStat[i].profit.ToString()));
-                    table.AddCell(new Phrase(_estStat[i].drawDown.ToString()));
-                    table.AddCell(new Phrase(_estStat[i].recoveryFactor.ToString()));
-                    table.AddCell(new Phrase(_estStat[i].averageDeal.ToString()));
-                    table.AddCell(new Phrase(_estStat[i].dealCount.ToString()));
-                }
-
-                document.Add(table);
-
-                document.Close();
-                writer.Close();
-            }
         }
 
         /// <summary>
@@ -216,7 +171,7 @@ namespace EstimationStat
             DesParamStratetgy.DateChange = "17.01.2023";
             DesParamStratetgy.Description = "";
             DesParamStratetgy.Change = "";
-            DesParamStratetgy.NameStrategy = "EstimationStat";
+            DesParamStratetgy.NameStrategy = "EstimationStatNorm";
         }
     }
 }
