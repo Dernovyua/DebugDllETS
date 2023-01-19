@@ -94,12 +94,25 @@ namespace EstimationStatNorm
         /// <summary>
         /// Рсчет нормализованного фактора оценки
         /// </summary>
-        
+        void CaclNorm()
+        {
+            
+            double profMin = _estStat.Min( a => a.profit);
+            double ddMin = double.MaxValue;
+            double recMin = double.MaxValue;
+            double avrMin = double.MaxValue;
+
+            double profMax = _estStat.Max(a => a.profit);
+            double ddMax = double.MinValue;
+            double recMax = double.MinValue;
+            double avrMax = double.MinValue;
+        }
         /// <summary>
         ///  Окончание цикла оптимизации
         /// </summary>
         public override void EndOtimizationAll()
         {
+            CaclNorm();
             SaveResultCSV("C:\\DOCS\\out.csv", ";");
         }
 
