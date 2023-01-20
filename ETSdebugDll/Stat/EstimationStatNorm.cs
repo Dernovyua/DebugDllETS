@@ -91,6 +91,10 @@ namespace EstimationStatNorm
             }
             _passCount++;
         }
+
+        /// <summary>
+        /// Нормализация оценки
+        /// </summary>
         double CalcNorm( double value, double min, double max )
         {
             double norm = max - min;
