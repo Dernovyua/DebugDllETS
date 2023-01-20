@@ -42,7 +42,7 @@ namespace EstimationStatNorm
     {
         int _passCount = 0;
         List<EstimationStat> ? _estStat = null;
-        string[] _statNames = { "Profit", "DD", "Recovery", "Avg. Deal", "Deal Count" };
+        string[] _statNames = { "Profit", "DD", "Recovery", "Avg. Deal", "Deal Count", "Total", "Normal" };
 
         /// <summary>
         ///  Начало цикла оптимизации
@@ -91,21 +91,52 @@ namespace EstimationStatNorm
             }
             _passCount++;
         }
+        double CalcNorm( double value, double min, double max )
+        {
+            double norm = max - min;
+            
+            if (norm <= 0)
+                return double.NaN;
+
+            double res = (value - min) / norm;
+
+            if (res < 0)
+                res = 0;
+
+            if (res > 1)
+                res = 1;
+
+            return res;
+        }
         /// <summary>
         /// Рсчет нормализованного фактора оценки
         /// </summary>
         void CaclNorm()
-        {
-            
+        {           
             double profMin = _estStat.Min( a => a.profit);
-            double ddMin = double.MaxValue;
-            double recMin = double.MaxValue;
-            double avrMin = double.MaxValue;
+            double ddMin = _estStat.Min(a => a.drawDown);
+            double recMin = _estStat.Min(a => a.recoveryFactor); 
+            double avrMin = _estStat.Min(a => a.averageDeal);
 
             double profMax = _estStat.Max(a => a.profit);
-            double ddMax = double.MinValue;
-            double recMax = double.MinValue;
-            double avrMax = double.MinValue;
+            double ddMax = _estStat.Max(a => a.drawDown);
+            double recMax = _estStat.Max(a => a.recoveryFactor);
+            double avrMax = _estStat.Max(a => a.averageDeal);
+
+            for( int i=0; i< _estStat.Count; i++)
+            {
+                _estStat[i].total = CalcNorm(_estStat[i].profit, profMin, profMax) +
+                                    CalcNorm(_estStat[i].drawDown, ddMin, ddMax) +
+                                    CalcNorm(_estStat[i].recoveryFactor, recMin, recMax) +
+                                    CalcNorm(_estStat[i].averageDeal, avrMin, avrMax);
+            }
+
+            double totalMin = _estStat.Min(a => a.total);
+            double totalMax = _estStat.Max(a => a.total);
+
+            for (int i = 0; i < _estStat.Count; i++)
+                _estStat[i].normTotal = CalcNorm(_estStat[i].total, totalMin, totalMax);
+
         }
         /// <summary>
         ///  Окончание цикла оптимизации
@@ -149,9 +180,11 @@ namespace EstimationStatNorm
                     str += _estStat[i].drawDown.ToString() + delimiter;
                     str += _estStat[i].recoveryFactor.ToString() + delimiter;
                     str += _estStat[i].averageDeal.ToString() + delimiter;
-                    str += _estStat[i].dealCount.ToString() + delimiter; 
+                    str += _estStat[i].dealCount.ToString() + delimiter;
+                    str += _estStat[i].total.ToString() + delimiter;
+                    str += _estStat[i].normTotal.ToString() + delimiter;
 
-                    for( int j=0; j< _estStat[i].userParam.Count; j++)
+                    for ( int j=0; j< _estStat[i].userParam.Count; j++)
                     {
                         str += _estStat[i].userParam[j].value.ToString() ;
 
