@@ -33,7 +33,6 @@ namespace EstimationStatNorm
         /// <summary>
         ///  Окончание каждого прохода оптимизации
         /// </summary>
-        //public override void SetUserStatisticParamOnEndTest(Statistic stat)
         public override void SetUserStatisticParamOnEndTest( ReportEndOptimForStatistic report )
         {
             var oParams = OptimParams;
@@ -42,13 +41,12 @@ namespace EstimationStatNorm
 
             if( 
                 stat.NetProfitLossPercent >= uStat[0].Value  && 
-                stat.MaxDrownDownPercent <= uStat[1].Value &&
+                Math.Abs( stat.MaxDrownDownPercent ) <= uStat[1].Value &&
                 stat.FactorRecovery >= uStat[2].Value  &&
                 stat.ProfitDealsPercents >= uStat[3].Value
                )
             {
                 EstimationStat est = new EstimationStat();
-
                 est.profit = stat.NetProfitLossPercent;
                 est.averageDeal = stat.AvaregeProfitLossPercent;
                 est.recoveryFactor = stat.FactorRecovery;
@@ -64,11 +62,6 @@ namespace EstimationStatNorm
                     est.tfType = "Unknown";
 
                 est.tfPeriod = report.TimeFramePeriod;
-
-                if( oParams.Count > 2 )
-                {
-                    int gebug = 0;
-                }
 
                 for (int i=0; i< oParams.Count; i++)
                 {
@@ -104,7 +97,7 @@ namespace EstimationStatNorm
 
         public override void GetAttributes()
         {
-            DesParamStratetgy.Version = "3";
+            DesParamStratetgy.Version = "5";
             DesParamStratetgy.DateRelease = "16.01.2023";
             DesParamStratetgy.DateChange = "24.01.2023";
             DesParamStratetgy.Description = "";
@@ -150,13 +143,14 @@ namespace EstimationStatNorm
     /// </summary>
     public class StatContainer
     {
-        List<List<EstimationStat>> _statContainer;
+        List<List<EstimationStat>> _statContainer;       
         string[] _statNames = { "Profit", "DD", "Recovery", "Avg. Deal", "Deal Count" };
 
         public StatContainer()
         {
             _statContainer = new List<List<EstimationStat>>();
         }
+
 
         /// <summary>
         ///  Возвращаем список стат. по ключу
@@ -197,6 +191,54 @@ namespace EstimationStatNorm
         }
 
         /// <summary>
+        /// Оценка результата
+        /// </summary>
+        EstimationStat ResultEstimation( List<EstimationStat> statList, int rang,  double kLimit )
+        {
+            if (statList.Count < (rang * 2 + 1))
+                return null;
+
+            List<EstimationStat> sorted = new List<EstimationStat>();
+            sorted = statList.OrderBy(x => x.paramNorm).ToList();
+            double maxResult = double.MinValue;
+            int targetIdx = -1;
+
+            for( int i=rang+1; i < sorted.Count - ( rang + 1 ); i++ )
+            {
+                bool targetStat = true;
+
+                for(int j=0; j<rang; j++)
+                {
+                    double limit = sorted[i].normTotal * kLimit;
+
+                    if ( sorted[i + j].normTotal > sorted[i].normTotal ||
+                         sorted[i + j].normTotal < limit ||
+                         sorted[i - j].normTotal > sorted[i].normTotal ||
+                         sorted[i - j].normTotal < limit
+                        )
+                    {
+                        targetStat = false;
+                        break;
+                    }
+                }
+
+                if (!targetStat)
+                    continue;
+
+                if (sorted[i].normTotal > maxResult)
+                {
+                    maxResult = sorted[i].normTotal;
+                    targetIdx = i;
+                }
+            }
+
+            if( targetIdx >= 0 )
+                return sorted[targetIdx];
+
+            return null;
+        }
+
+        /// <summary>
         /// Нормализация параметра
         /// </summary>
         public void BuildReport()
@@ -207,6 +249,7 @@ namespace EstimationStatNorm
 
             for (int i=0; i<_statContainer.Count; i++)
             {
+
                 string fName = dir + _statContainer[i][0].symbol + "_";
                 fName += _statContainer[i][0].tfType + "_";
                 fName += _statContainer[i][0].tfPeriod + ".csv";
@@ -310,7 +353,6 @@ namespace EstimationStatNorm
             }
         }
 
-
         /// <summary>
         /// Сохранение результатов в CSV
         /// </summary>
@@ -331,14 +373,12 @@ namespace EstimationStatNorm
                 str += "Symbol" + delimiter;
                 str += "Time Type" + delimiter;
                 str += "Time" + delimiter;
-                str += "Stat Total" + delimiter;
                 str += "Stat Norm" + delimiter;
 
                 for (int i = 0; i < estStat[0].userParam.Count; i++)
                 {
                     str += estStat[0].userParam[i].name + delimiter;
                 }
-                str += "Param. Total" + delimiter;
                 str += "Param. Norm" + delimiter;
                 sw.WriteLine(str);
 
@@ -352,14 +392,12 @@ namespace EstimationStatNorm
                     str += estStat[i].symbol + delimiter;
                     str += estStat[i].tfType + delimiter;
                     str += estStat[i].tfPeriod.ToString() + delimiter;
-                    str += estStat[i].total.ToString() + delimiter;
                     str += estStat[i].normTotal.ToString() + delimiter;
 
                     for (int j = 0; j < estStat[i].userParam.Count; j++)
                     {
                         str += estStat[i].userParam[j].value.ToString() + delimiter;
                     }
-                    str += estStat[i].paramTotal.ToString() + delimiter;
                     str += estStat[i].paramNorm.ToString();
                     sw.WriteLine(str);
                 }
