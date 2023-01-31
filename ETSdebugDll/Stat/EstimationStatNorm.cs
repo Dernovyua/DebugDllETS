@@ -63,6 +63,13 @@ namespace EstimationStatNorm
 
                 est.tfPeriod = report.TimeFramePeriod;
 
+                //--- Debug 
+                if(oParams.Count != 2 )
+                {
+                    int debug = 0;
+                }
+                //---
+
                 for (int i=0; i< oParams.Count; i++)
                 {
                     UserParam up = new UserParam();
@@ -249,12 +256,12 @@ namespace EstimationStatNorm
 
             for (int i=0; i<_statContainer.Count; i++)
             {
-
+                EstimationStat result = ResultEstimation(_statContainer[i], 3, 0.5);
                 string fName = dir + _statContainer[i][0].symbol + "_";
                 fName += _statContainer[i][0].tfType + "_";
                 fName += _statContainer[i][0].tfPeriod + ".csv";
 
-                SaveResultCSV(_statContainer[i], fName, ";");
+                SaveResultCSV(_statContainer[i], result, fName, ";");
             }
         }
         /// <summary>
@@ -356,7 +363,7 @@ namespace EstimationStatNorm
         /// <summary>
         /// Сохранение результатов в CSV
         /// </summary>
-        void SaveResultCSV( List<EstimationStat> estStat, string fNameFull, string delimiter)
+        void SaveResultCSV( List<EstimationStat> estStat, EstimationStat result, string fNameFull, string delimiter)
         {
             if ( estStat.Count <= 0)
                 return;
@@ -400,6 +407,18 @@ namespace EstimationStatNorm
                     }
                     str += estStat[i].paramNorm.ToString();
                     sw.WriteLine(str);
+                }
+
+                if( result != null )
+                {
+                    str = "Based on the optimization results, it is recommended to use the following parameters:";
+                    sw.WriteLine(str);
+
+                    for( int i=0; i<result.userParam.Count; i++)
+                    {
+                        str = result.userParam[i].name + " = " + result.userParam[i].value.ToString();
+                        sw.WriteLine(str);
+                    }
                 }
                 sw.Close();
             }
