@@ -15,21 +15,32 @@ using System.Windows.Controls;
 using ScriptSolution.Model;
 using ScriptSolution.Model.OptimizationResul;
 using System.Text.Unicode;
+using Export;
+using Export.ModelsExport;
+using Export.Models;
+using System.Diagnostics;
+using Export.Models.Charts;
+using System.Web;
+using System.Windows.Shapes;
+using System.Xml.Linq;
+using System.Windows;
+using Line = Export.Models.Charts.Line;
 
 namespace EstimationStatNorm
 {
     public class EstimationStatNorm : StatisticScript
     {
-        StatContainer? _stat = null;
+                StatContainer? _stat = null;
+        //public  ClientReport _clientRep = default!;
 
         /// <summary>
         ///  Начало цикла оптимизации
         /// </summary>
         public override void StartOptimization()
         {
-            _stat = new StatContainer();
+            _stat = new StatContainer( this );
+            //_clientRep = new ClientReport();
         }
-
         /// <summary>
         ///  Окончание каждого прохода оптимизации
         /// </summary>
@@ -37,8 +48,8 @@ namespace EstimationStatNorm
         {
             var oParams = OptimParams;
             var uStat = UserStatistics;
-            Statistic stat = report.Statistic;
-
+            Statistic stat = report.Statistic; 
+            
             if( 
                 stat.NetProfitLossPercent >= uStat[0].Value  && 
                 Math.Abs( stat.MaxDrownDownPercent ) <= uStat[1].Value &&
@@ -63,13 +74,6 @@ namespace EstimationStatNorm
 
                 est.tfPeriod = report.TimeFramePeriod;
 
-                //--- Debug 
-                if(oParams.Count != 2 )
-                {
-                    int debug = 0;
-                }
-                //---
-
                 for (int i=0; i< oParams.Count; i++)
                 {
                     UserParam up = new UserParam();
@@ -84,11 +88,17 @@ namespace EstimationStatNorm
         /// <summary>
         ///  Окончание цикла оптимизации
         /// </summary>
-        public override void EndOtimizationAll()
+        public override void EndOptimizationCycle()
         {
-            _stat.BuildReport();
+            _stat.BuildReport();            
         }
-
+        /// <summary>
+        ///  Окончание процеса оптимизации
+        /// </summary>
+        public override void EndOptimizationAll()
+        {
+            _stat.OnEndOptimisation();
+        }
         /// <summary>
         /// Определение параметров для скрипта
         /// </summary>
@@ -104,7 +114,7 @@ namespace EstimationStatNorm
 
         public override void GetAttributes()
         {
-            DesParamStratetgy.Version = "5";
+            DesParamStratetgy.Version = "7";
             DesParamStratetgy.DateRelease = "16.01.2023";
             DesParamStratetgy.DateChange = "24.01.2023";
             DesParamStratetgy.Description = "";
@@ -138,6 +148,7 @@ namespace EstimationStatNorm
         public double paramTotal = 0; // Общий фактор по параметрам
         public double paramNorm = 0; // Нормированный критерий по параметроам
         public List<UserParam>? userParam = null;// Параметры оптимизации
+        public int targetIdx = -1;
 
         public EstimationStat()
         {
@@ -150,15 +161,30 @@ namespace EstimationStatNorm
     /// </summary>
     public class StatContainer
     {
+        EstimationStatNorm? _mdl = null;
+        ClientReport? _totalPDF = null;
+        List<Action>? _totalActions = null;
+        bool _addStrategyInfo = true;
         List<List<EstimationStat>> _statContainer;       
         string[] _statNames = { "Profit", "DD", "Recovery", "Avg. Deal", "Deal Count" };
+        int _reportCount = 0;
 
-        public StatContainer()
+        public StatContainer( EstimationStatNorm mdl )
         {
+            _mdl = mdl; 
             _statContainer = new List<List<EstimationStat>>();
+            _totalPDF = new ClientReport();
+            _totalPDF.SetExport(new Pdf(_mdl.PathSaveResult, "total"));
+            _totalActions = new List<Action>();
         }
-
-
+        /// <summary>
+        /// Окончание процесса оптимизации
+        /// </summary>
+        public void OnEndOptimisation()
+        {
+            _totalPDF.GenerateReport( _totalActions );
+            _totalPDF.SaveDocument();
+        }
         /// <summary>
         ///  Возвращаем список стат. по ключу
         /// </summary>
@@ -239,31 +265,14 @@ namespace EstimationStatNorm
                 }
             }
 
-            if( targetIdx >= 0 )
+            if (targetIdx >= 0)
+            {
+                sorted[targetIdx].targetIdx = targetIdx;
                 return sorted[targetIdx];
-
+            }
             return null;
         }
 
-        /// <summary>
-        /// Нормализация параметра
-        /// </summary>
-        public void BuildReport()
-        {
-            CaclNormStat();
-            CaclNormParams();
-            string dir = "C:\\DOCS\\";
-
-            for (int i=0; i<_statContainer.Count; i++)
-            {
-                EstimationStat result = ResultEstimation(_statContainer[i], 3, 0.5);
-                string fName = dir + _statContainer[i][0].symbol + "_";
-                fName += _statContainer[i][0].tfType + "_";
-                fName += _statContainer[i][0].tfPeriod + ".csv";
-
-                SaveResultCSV(_statContainer[i], result, fName, ";");
-            }
-        }
         /// <summary>
         /// Нормализация параметра
         /// </summary>
@@ -272,7 +281,7 @@ namespace EstimationStatNorm
             double norm = max - min;
 
             if (norm <= 0)
-                return double.NaN;
+                return 0; //double.NaN;
 
             double res = (value - min) / norm;
 
@@ -346,7 +355,12 @@ namespace EstimationStatNorm
                 for (int i = 0; i < estStat.Count; i++)
                 {
                     estStat[i].paramTotal = 0;
-
+                    //--- debug
+                    if(estStat[i].userParam.Count != 2 )
+                    {
+                        int dbg = 0;
+                    }
+                    //---
                     for (int k = 0; k < estStat[i].userParam.Count; k++)
                     {
                         estStat[i].paramTotal += CalcNorm(estStat[i].userParam[k].value, min[k], max[k]);
@@ -361,6 +375,176 @@ namespace EstimationStatNorm
         }
 
         /// <summary>
+        /// Результирующий отчет
+        /// </summary>
+        public void BuildReport()
+        {
+            string path = _mdl.PathSaveResult;            
+            CaclNormStat();
+            CaclNormParams();
+
+            for (int i = 0; i < _statContainer.Count; i++)
+            {
+                if (i < _reportCount)
+                    continue;
+
+                EstimationStat result = ResultEstimation(_statContainer[i], 3, 0.5);
+                string fName = _statContainer[i][0].symbol + "_";
+                fName += _statContainer[i][0].tfType + "_";
+                fName += _statContainer[i][0].tfPeriod;
+                SaveResultCSV(_statContainer[i], result, path + "\\" + fName + ".csv", ";");
+                ExportReportPDF( _statContainer[i], result, path, fName );
+                //TestPDF(path, fName);
+                _reportCount++;
+            }
+        }
+        /// <summary>
+        /// Экспорт PDF через Export.dll
+        /// </summary>
+        void TestPDF(string path, string fName)
+        {
+            ClientReport rep = new ClientReport();
+            rep.SetExport(new Pdf(path, fName));
+
+            rep.GenerateReport(new List<Action>()
+            {
+                () => rep.AddText(new Text("Sample text"))
+            });
+            rep.SaveDocument();
+        }
+        /// <summary>
+        /// Экспорт PDF через Export.dll
+        /// </summary>
+        void ExportReportPDF( List<EstimationStat> estStat, EstimationStat result, string path, string fName )
+        {
+            if (estStat.Count <= 0 || result == null )
+                return;
+
+            ClientReport rep = new ClientReport();
+            rep.SetExport(new Pdf(path, fName));
+
+            // Заполняем данные для диаграммы
+            List<EstimationStat> sort = estStat.OrderBy(x => x.paramNorm).ToList();
+            SettingChart chartSet = new SettingChart();
+            chartSet.Width = 750;
+            chartSet.Height = 350;
+            chartSet.SignatureX = "Индекс прохода";
+            chartSet.SignatureY = "Интегрированная оценка";
+            List<HistrogramData> chartData = new List<HistrogramData>();
+
+            for( int i=0; i< sort.Count; i++)
+            {
+                 chartData.Add(new HistrogramData(i, sort[i].normTotal));
+            }
+            //Подготовка текстового блока 
+            SettingText setTxt = new SettingText();
+            setTxt.FontSize = 12;
+            setTxt.FontName = "Arial";
+            setTxt.TextAligment = Export.Enums.Aligment.Left;
+
+            SettingText setTxtCenter = new SettingText();
+            setTxtCenter.FontSize = 12;
+            setTxtCenter.FontName = "Arial";
+            setTxtCenter.TextAligment = Export.Enums.Aligment.Center;
+
+            SettingText setTxtBold = new SettingText();
+            setTxtBold.FontSize = 14;
+            setTxtBold.FontName = "Arial";
+            setTxtBold.TextAligment = Export.Enums.Aligment.Left;
+            setTxtBold.Bold = true;
+
+            string strategyName = "Наименование стратегии: " + _mdl.ParamOptimStrategy.NameStrategy;
+            string Version = "Версия: " + _mdl.ParamOptimStrategy.Version;
+            string Author = "Автор: " + _mdl.ParamOptimStrategy.Author;
+            string dateModify = "Дата последней модификации: " + _mdl.ParamOptimStrategy.DateChange;
+            string symbTF = estStat[0].symbol + "\t" + estStat[0].tfType + " " + estStat[0].tfPeriod.ToString();
+            string chartName = "Диаграмма плотности распределения оценки результатов оптимизации";
+            string strResult = "";
+            strResult = "По итогам оптимизации, рекомендованы к использованию следующие параметры:\n\n";
+
+            //данные для таблицы выбранных параметров. 
+            HeaderTable htbl = new HeaderTable();
+            htbl.Headers = new List<string>{ "Нименование", "Значение"};
+            TableModel tableMdl = new TableModel( htbl, new TableSetting(), new List<List<object>>());
+
+             for (int i = 0; i < result.userParam.Count; i++)
+             {
+                 tableMdl.TableData.Add(new List<object>()
+                 {
+                     result.userParam[i].name,
+                     result.userParam[i].value
+                 });
+             }           
+             // Маркер для выбранного кластера
+             List<AreaHistrogram> hAreas = new List<AreaHistrogram>();
+
+             if( result.targetIdx > 0 )
+             {
+                 AreaHistrogram hArea = new AreaHistrogram();
+                 hArea.AreaHistogramData = new List<AreaPoint>()
+                 {
+                     new AreaPoint(result.targetIdx - 3, 1 ),
+                     new AreaPoint(result.targetIdx + 3, 1 )
+                 };
+                 hAreas.Add(hArea);
+             }
+            // создание отчета
+            rep.GenerateReport(new List<Action>()
+             {
+                 //() => rep.AddText(new Text(strategyName, setTxt)),
+                 //() => rep.AddText(new Text(Version, setTxt)),
+                 //() => rep.AddText(new Text(Author, setTxt)),
+                 //() => rep.AddText(new Text(dateModify, setTxt)),
+                 //() => rep.AddText(new Text("\n")),
+                 //() => rep.AddText(new Text(symbTF, setTxtBold)),
+                 //() => rep.AddText(new Text("\n")),
+                 //() => rep.AddText(new Text(chartName, setTxtCenter)),
+                 
+                 () => rep.AddChart( new Chart( new Line()
+                 {
+                    Lines = new List<LineData>()
+                    {
+                        new LineData()
+                        {
+                            NameLine = "1",
+                            LinePoints = new List<LinePoint>()
+                            {
+                                new LinePoint() { XValue = 2, YValue = 10},
+                                new LinePoint() { XValue = 3, YValue = 12}
+                            }
+                        }
+                    },
+                    SettingChart = new SettingChart() {  }
+                 })),
+
+                 //() => rep.AddChart(new Chart(new Histogram( chartData, chartSet , hAreas ))),
+                 //() => rep.AddText(new Text("\n")),
+                 //() => rep.AddText(new Text(strResult, setTxt)),
+                 //() => rep.AddTable(tableMdl)
+             });
+             //rep.OpenPreview();
+             rep.SaveDocument();
+
+             //Добавляем данные в глобальный отчет
+             /*if( _addStrategyInfo)
+             {
+                 _totalActions.Add(() => _totalPDF.AddText(new Text(strategyName, setTxt)));
+                 _totalActions.Add(() => _totalPDF.AddText(new Text(Version, setTxt)));
+                 _totalActions.Add(() => _totalPDF.AddText(new Text(Author, setTxt)));
+                 _totalActions.Add(() => _totalPDF.AddText(new Text(dateModify, setTxt)));
+                 _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
+                 _addStrategyInfo = false;
+             }
+             _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
+             _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
+             _totalActions.Add(() => _totalPDF.AddText(new Text(chartName, setTxtCenter)));
+             _totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, chartSet, hAreas))));
+             _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
+             _totalActions.Add(() => _totalPDF.AddText(new Text(strResult, setTxt)));
+             _totalActions.Add(() => _totalPDF.AddTable(tableMdl));
+             _totalPDF.AddNewPage();*/
+        }
+        /// <summary>
         /// Сохранение результатов в CSV
         /// </summary>
         void SaveResultCSV( List<EstimationStat> estStat, EstimationStat result, string fNameFull, string delimiter)
@@ -368,10 +552,33 @@ namespace EstimationStatNorm
             if ( estStat.Count <= 0)
                 return;
 
-            using (StreamWriter sw = new StreamWriter(fNameFull, false, System.Text.Encoding.Default))
+            using (StreamWriter sw = new StreamWriter(fNameFull, false, System.Text.Encoding.UTF8))
             {
                 string str = "";
 
+                //-- Выводим результата анализа 
+                sw.WriteLine(" ");
+
+                if (result != null)
+                {
+                    str = "По итогам оптимизации, рекомендованы к использованию следующие параметры:";
+                    sw.WriteLine(str);
+
+                    for (int i = 0; i < result.userParam.Count; i++)
+                    {
+                        str = result.userParam[i].name + " = " + result.userParam[i].value.ToString();
+                        sw.WriteLine(str);
+                    }
+                }
+                else
+                {
+                    str = "Система не устойчива на всем диапазоне оптимизируемых параметров.";
+                    sw.WriteLine(str);
+                }
+                sw.WriteLine(" ");
+                sw.WriteLine(" ");
+                str = "";
+                //--- Выводим табличный отчет 
                 for (int i = 0; i < _statNames.Length; i++)
                 {
                     str += _statNames[i] + delimiter;
@@ -405,20 +612,9 @@ namespace EstimationStatNorm
                     {
                         str += estStat[i].userParam[j].value.ToString() + delimiter;
                     }
+
                     str += estStat[i].paramNorm.ToString();
                     sw.WriteLine(str);
-                }
-
-                if( result != null )
-                {
-                    str = "Based on the optimization results, it is recommended to use the following parameters:";
-                    sw.WriteLine(str);
-
-                    for( int i=0; i<result.userParam.Count; i++)
-                    {
-                        str = result.userParam[i].name + " = " + result.userParam[i].value.ToString();
-                        sw.WriteLine(str);
-                    }
                 }
                 sw.Close();
             }

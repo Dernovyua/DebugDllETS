@@ -12,6 +12,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="Export">
+      <HintPath>..\..\..\ETS 2.0 Net6.0\Export.dll</HintPath>
+    </Reference>
     <Reference Include="ScriptSolution">
       <HintPath>..\..\..\ETS 2.0 Net6.0\ScriptSolution.dll</HintPath>
     </Reference>
