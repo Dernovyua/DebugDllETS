@@ -393,8 +393,8 @@ namespace EstimationStatNorm
                 fName += _statContainer[i][0].tfType + "_";
                 fName += _statContainer[i][0].tfPeriod;
                 SaveResultCSV(_statContainer[i], result, path + "\\" + fName + ".csv", ";");
-                ExportReportPDF( _statContainer[i], result, path, fName );
-                //TestPDF(path, fName);
+                //ExportReportPDF( _statContainer[i], result, path, fName );
+                TestPDF(path, fName);
                 _reportCount++;
             }
         }
@@ -408,7 +408,24 @@ namespace EstimationStatNorm
 
             rep.GenerateReport(new List<Action>()
             {
-                () => rep.AddText(new Text("Sample text"))
+                () => rep.AddText(new Text("Sample text")),
+                () => rep.AddChart( new Chart( new Line()
+                 {
+                    Lines = new List<LineData>()
+                    {
+                        new LineData()
+                        {
+                            NameLine = "1",
+                            LinePoints = new List<LinePoint>()
+                            {
+                                new LinePoint() { XValue = 2, YValue = 10},
+                                new LinePoint() { XValue = 3, YValue = 12}
+                            }
+                        }
+                    },
+                    SettingChart = new SettingChart() {  }
+                 }))
+
             });
             rep.SaveDocument();
         }
@@ -491,16 +508,16 @@ namespace EstimationStatNorm
             // создание отчета
             rep.GenerateReport(new List<Action>()
              {
-                 //() => rep.AddText(new Text(strategyName, setTxt)),
-                 //() => rep.AddText(new Text(Version, setTxt)),
-                 //() => rep.AddText(new Text(Author, setTxt)),
-                 //() => rep.AddText(new Text(dateModify, setTxt)),
-                 //() => rep.AddText(new Text("\n")),
-                 //() => rep.AddText(new Text(symbTF, setTxtBold)),
-                 //() => rep.AddText(new Text("\n")),
-                 //() => rep.AddText(new Text(chartName, setTxtCenter)),
+                 () => rep.AddText(new Text(strategyName, setTxt)),
+                 () => rep.AddText(new Text(Version, setTxt)),
+                 () => rep.AddText(new Text(Author, setTxt)),
+                 () => rep.AddText(new Text(dateModify, setTxt)),
+                 () => rep.AddText(new Text("\n")),
+                 () => rep.AddText(new Text(symbTF, setTxtBold)),
+                 () => rep.AddText(new Text("\n")),
+                 () => rep.AddText(new Text(chartName, setTxtCenter)),
                  
-                 () => rep.AddChart( new Chart( new Line()
+                 /*() => rep.AddChart( new Chart( new Line()
                  {
                     Lines = new List<LineData>()
                     {
@@ -515,12 +532,12 @@ namespace EstimationStatNorm
                         }
                     },
                     SettingChart = new SettingChart() {  }
-                 })),
+                 })),*/
 
-                 //() => rep.AddChart(new Chart(new Histogram( chartData, chartSet , hAreas ))),
-                 //() => rep.AddText(new Text("\n")),
-                 //() => rep.AddText(new Text(strResult, setTxt)),
-                 //() => rep.AddTable(tableMdl)
+                 () => rep.AddChart(new Chart(new Histogram( chartData, chartSet , hAreas ))),
+                 () => rep.AddText(new Text("\n")),
+                 () => rep.AddText(new Text(strResult, setTxt)),
+                 () => rep.AddTable(tableMdl)
              });
              //rep.OpenPreview();
              rep.SaveDocument();
