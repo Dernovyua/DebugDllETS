@@ -4,27 +4,19 @@ using SourceEts.CommonSettings.Testing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.IO;
 using System.Data;
-using System.Windows.Media;
-using System.Windows.Documents;
-using System.Diagnostics.SymbolStore;
-using System.Windows.Controls;
-using ScriptSolution.Model;
+//using System.Windows.Media;
 using ScriptSolution.Model.OptimizationResul;
-using System.Text.Unicode;
 using Export;
 using Export.ModelsExport;
 using Export.Models;
-using System.Diagnostics;
 using Export.Models.Charts;
-using System.Web;
-using System.Windows.Shapes;
-using System.Xml.Linq;
 using System.Windows;
-using Line = Export.Models.Charts.Line;
+
+using System.Drawing.Imaging;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 
 namespace EstimationStatNorm
 {
@@ -105,10 +97,10 @@ namespace EstimationStatNorm
         public override List<UserParamModel> CreateUserStatisticParam()
         {
             List<UserParamModel> list = new List<UserParamModel>();
-            list.Add(new UserParamModel { Name = "Profit ( % ) >= ", IsOptimization = false });
-            list.Add(new UserParamModel { Name = "Drawdown ( % ) <= ", IsOptimization = false });
-            list.Add(new UserParamModel { Name = "Recovery Factor >= ", IsOptimization = false });
-            list.Add(new UserParamModel { Name = "Deal profit ( % ) >= ", IsOptimization = false });
+            list.Add(new UserParamModel { Name = "Profit ( % ) >= ", Value = 1, IsOptimization = false });
+            list.Add(new UserParamModel { Name = "Drawdown ( % ) <= ", Value = 50, IsOptimization = false });
+            list.Add(new UserParamModel { Name = "Recovery Factor >= ", Value = 1, IsOptimization = false });
+            list.Add(new UserParamModel { Name = "Deal profit ( % ) >= ", Value = 0.3, IsOptimization = false });
             return list;
         }
 
@@ -155,7 +147,6 @@ namespace EstimationStatNorm
             userParam = new List<UserParam>();
         }
     };
-
     /// <summary>
     ///  СТАТИСТИКА
     /// </summary>
@@ -207,7 +198,6 @@ namespace EstimationStatNorm
             }
             return null;
         }
-
         /// <summary>
         ///  Добавляем статистку по проходу
         /// </summary>
@@ -293,7 +283,6 @@ namespace EstimationStatNorm
 
             return res;
         }
-
         /// <summary>
         /// Рсчет нормализованного стат. фактора 
         /// </summary>
@@ -373,7 +362,6 @@ namespace EstimationStatNorm
                     estStat[i].paramNorm = CalcNorm(estStat[i].paramTotal, totalMin, totalMax);
             }
         }
-
         /// <summary>
         /// Результирующий отчет
         /// </summary>
@@ -388,46 +376,32 @@ namespace EstimationStatNorm
                 if (i < _reportCount)
                     continue;
 
-                EstimationStat result = ResultEstimation(_statContainer[i], 3, 0.5);
+                EstimationStat result = ResultEstimation(_statContainer[i], 4, 0.5);
                 string fName = _statContainer[i][0].symbol + "_";
                 fName += _statContainer[i][0].tfType + "_";
                 fName += _statContainer[i][0].tfPeriod;
                 SaveResultCSV(_statContainer[i], result, path + "\\" + fName + ".csv", ";");
-                //ExportReportPDF( _statContainer[i], result, path, fName );
-                TestPDF(path, fName);
+                ExportReportPDF( _statContainer[i], result, path, fName );
+                //TestPDF(path, fName);
                 _reportCount++;
             }
         }
         /// <summary>
-        /// Экспорт PDF через Export.dll
+        /// Тест экспорта PDF через Export.dll
         /// </summary>
-        void TestPDF(string path, string fName)
+        public void TestPDF(string path, string fName)
         {
-            ClientReport rep = new ClientReport();
-            rep.SetExport(new Pdf(path, fName));
-
-            rep.GenerateReport(new List<Action>()
+            using (ClientReport rep = new ClientReport())
             {
-                () => rep.AddText(new Text("Sample text")),
-                () => rep.AddChart( new Chart( new Line()
-                 {
-                    Lines = new List<LineData>()
-                    {
-                        new LineData()
-                        {
-                            NameLine = "1",
-                            LinePoints = new List<LinePoint>()
-                            {
-                                new LinePoint() { XValue = 2, YValue = 10},
-                                new LinePoint() { XValue = 3, YValue = 12}
-                            }
-                        }
-                    },
-                    SettingChart = new SettingChart() {  }
-                 }))
+                rep.SetExport(new Pdf(path, fName));
+                rep.GenerateReport(new List<Action>()
+                {
+                    () => rep.AddText(new Text("Helllooooooooooooooooooo", new SettingText())),
+                    () => rep.AddChart(new Chart(new Histogram(new List<double> () { 0.1, 0.14, 0.28, 0.9, 0.14, 0.6, 0.44, 0.63 }, new SettingChart()))),
+                });
 
-            });
-            rep.SaveDocument();
+                rep.SaveDocument();
+            }
         }
         /// <summary>
         /// Экспорт PDF через Export.dll
@@ -439,20 +413,8 @@ namespace EstimationStatNorm
 
             ClientReport rep = new ClientReport();
             rep.SetExport(new Pdf(path, fName));
-
-            // Заполняем данные для диаграммы
             List<EstimationStat> sort = estStat.OrderBy(x => x.paramNorm).ToList();
-            SettingChart chartSet = new SettingChart();
-            chartSet.Width = 750;
-            chartSet.Height = 350;
-            chartSet.SignatureX = "Индекс прохода";
-            chartSet.SignatureY = "Интегрированная оценка";
-            List<HistrogramData> chartData = new List<HistrogramData>();
 
-            for( int i=0; i< sort.Count; i++)
-            {
-                 chartData.Add(new HistrogramData(i, sort[i].normTotal));
-            }
             //Подготовка текстового блока 
             SettingText setTxt = new SettingText();
             setTxt.FontSize = 12;
@@ -476,74 +438,67 @@ namespace EstimationStatNorm
             string dateModify = "Дата последней модификации: " + _mdl.ParamOptimStrategy.DateChange;
             string symbTF = estStat[0].symbol + "\t" + estStat[0].tfType + " " + estStat[0].tfPeriod.ToString();
             string chartName = "Диаграмма плотности распределения оценки результатов оптимизации";
-            string strResult = "";
-            strResult = "По итогам оптимизации, рекомендованы к использованию следующие параметры:\n\n";
+            string chartDesc = "Данная диаграмма показывает зависимость интегрированного показателя статистической оценки " +
+                " относительно совокупного фактора парамеров оптимизации. Значения по горизонтальной оси, это индекс прохода в результирующей таблице которая представлена" +
+                " в соответствующем CSV файле. Данные в таблице упорядочены по фактору параметров.";
+            string strResult = "По итогам оптимизации, рекомендованы к использованию следующие параметры:\n\n";
 
             //данные для таблицы выбранных параметров. 
             HeaderTable htbl = new HeaderTable();
             htbl.Headers = new List<string>{ "Нименование", "Значение"};
             TableModel tableMdl = new TableModel( htbl, new TableSetting(), new List<List<object>>());
 
-             for (int i = 0; i < result.userParam.Count; i++)
-             {
+            for (int i = 0; i < result.userParam.Count; i++)
+            {
                  tableMdl.TableData.Add(new List<object>()
                  {
                      result.userParam[i].name,
                      result.userParam[i].value
                  });
-             }           
-             // Маркер для выбранного кластера
-             List<AreaHistrogram> hAreas = new List<AreaHistrogram>();
+            }
 
-             if( result.targetIdx > 0 )
-             {
-                 AreaHistrogram hArea = new AreaHistrogram();
-                 hArea.AreaHistogramData = new List<AreaPoint>()
-                 {
-                     new AreaPoint(result.targetIdx - 3, 1 ),
-                     new AreaPoint(result.targetIdx + 3, 1 )
-                 };
-                 hAreas.Add(hArea);
-             }
+            // Заполняем данные для диаграммы
+            List<double> chartData = new List<double>();
+
+            for (int i = 0; i < sort.Count; i++)
+            {
+                chartData.Add(sort[i].normTotal);
+            }
+            /*SettingChart chartSet = new SettingChart();
+            chartSet.Width = 800;
+            chartSet.Height = 350;
+            chartSet.SignatureX = "Индекс прохода";
+            chartSet.SignatureY = "Интегрированная оценка";*/
+            int markerStart = 0;
+            int markerCount = 0;
+            // Маркер для выбранного кластера
+            if ( result.targetIdx > 0 )
+            {
+                markerStart = result.targetIdx - 3;
+                markerCount = 7; 
+            }
             // создание отчета
             rep.GenerateReport(new List<Action>()
-             {
-                 () => rep.AddText(new Text(strategyName, setTxt)),
-                 () => rep.AddText(new Text(Version, setTxt)),
-                 () => rep.AddText(new Text(Author, setTxt)),
-                 () => rep.AddText(new Text(dateModify, setTxt)),
-                 () => rep.AddText(new Text("\n")),
-                 () => rep.AddText(new Text(symbTF, setTxtBold)),
-                 () => rep.AddText(new Text("\n")),
-                 () => rep.AddText(new Text(chartName, setTxtCenter)),
-                 
-                 /*() => rep.AddChart( new Chart( new Line()
-                 {
-                    Lines = new List<LineData>()
-                    {
-                        new LineData()
-                        {
-                            NameLine = "1",
-                            LinePoints = new List<LinePoint>()
-                            {
-                                new LinePoint() { XValue = 2, YValue = 10},
-                                new LinePoint() { XValue = 3, YValue = 12}
-                            }
-                        }
-                    },
-                    SettingChart = new SettingChart() {  }
-                 })),*/
-
-                 () => rep.AddChart(new Chart(new Histogram( chartData, chartSet , hAreas ))),
-                 () => rep.AddText(new Text("\n")),
-                 () => rep.AddText(new Text(strResult, setTxt)),
-                 () => rep.AddTable(tableMdl)
+            {
+                () => rep.AddText(new Text(strategyName, setTxt)),
+                () => rep.AddText(new Text(Version, setTxt)),
+                () => rep.AddText(new Text(Author, setTxt)),
+                () => rep.AddText(new Text(dateModify, setTxt)),
+                () => rep.AddText(new Text("\n")),
+                () => rep.AddText(new Text(symbTF, setTxtBold)),
+                () => rep.AddText(new Text("\n")),
+                () => rep.AddText(new Text(chartName, setTxtCenter)),
+                //() => rep.AddChart(new Chart(new Histogram( chartData, chartSet ))),
+                () => rep.AddChart(new Chart(new Histogram( chartData, markerStart, markerCount ))),
+                () => rep.AddText(new Text(chartDesc, setTxt)),
+                () => rep.AddText(new Text("\n")),
+                () => rep.AddText(new Text(strResult, setTxt)),
+                () => rep.AddTable(tableMdl)
              });
              //rep.OpenPreview();
              rep.SaveDocument();
-
              //Добавляем данные в глобальный отчет
-             /*if( _addStrategyInfo)
+             if( _addStrategyInfo)
              {
                  _totalActions.Add(() => _totalPDF.AddText(new Text(strategyName, setTxt)));
                  _totalActions.Add(() => _totalPDF.AddText(new Text(Version, setTxt)));
@@ -555,11 +510,11 @@ namespace EstimationStatNorm
              _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
              _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
              _totalActions.Add(() => _totalPDF.AddText(new Text(chartName, setTxtCenter)));
-             _totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, chartSet, hAreas))));
+             _totalActions.Add(() => rep.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
              _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
              _totalActions.Add(() => _totalPDF.AddText(new Text(strResult, setTxt)));
              _totalActions.Add(() => _totalPDF.AddTable(tableMdl));
-             _totalPDF.AddNewPage();*/
+             //_totalPDF.AddNewPage();
         }
         /// <summary>
         /// Сохранение результатов в CSV
