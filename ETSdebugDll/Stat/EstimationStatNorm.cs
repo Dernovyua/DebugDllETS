@@ -554,14 +554,15 @@ namespace EstimationStatNorm
 
             HeaderTable htbl = new HeaderTable();
             htbl.Headers = new List<string>();
+            htbl.Headers.Add("Symbol");
+            htbl.Headers.Add("Time Type");
+            htbl.Headers.Add("Time");
+
             for (int i = 0; i < _statNames.Length; i++)
             {
                 htbl.Headers.Add(_statNames[i]);
             }
 
-            htbl.Headers.Add("Symbol");
-            htbl.Headers.Add("Time Type");
-            htbl.Headers.Add("Time");
             htbl.Headers.Add("Stat Norm");
 
             for (int i = 0; i < estStat[0].userParam.Count; i++)
@@ -576,15 +577,14 @@ namespace EstimationStatNorm
             for (int i = 0; i < sort.Count; i++)
             {
                 List<object> tObjects = new List<object>();
-                tObjects.Add(sort[i].profit);
+                tObjects.Add(sort[i].symbol);
+                tObjects.Add(sort[i].tfType);
+                tObjects.Add(sort[i].tfPeriod);
                 tObjects.Add(sort[i].profit);
                 tObjects.Add(sort[i].drawDown);
                 tObjects.Add(sort[i].recoveryFactor);
                 tObjects.Add(sort[i].averageDeal);
                 tObjects.Add(sort[i].dealCount);
-                tObjects.Add(sort[i].symbol);
-                tObjects.Add(sort[i].tfType);
-                tObjects.Add(sort[i].tfPeriod);
                 tObjects.Add(sort[i].normTotal);
 
                 for (int j = 0; j < sort[i].userParam.Count; j++)
