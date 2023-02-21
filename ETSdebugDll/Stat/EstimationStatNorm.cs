@@ -14,15 +14,17 @@ using Export.Models;
 using Export.Models.Charts;
 using System.Windows;
 using System.Xml.Linq;
+using System.Net;
 
 
 namespace EstimationStatNorm
 {
     public class EstimationStatNorm : StatisticScript
     {
-                StatContainer? _stat = null;
-        //public  ClientReport _clientRep = default!;
-
+        StatContainer? _stat = null;
+        public DateTime? _startDate = null; // Начало периода оптимизации
+        public DateTime? _endDate = null; // Окончание периода оптимизации
+        public double _capital = 0; // Начальный капитал       
         /// <summary>
         ///  Начало цикла оптимизации
         /// </summary>
@@ -32,15 +34,60 @@ namespace EstimationStatNorm
             //_clientRep = new ClientReport();
         }
         /// <summary>
+        ///  Расчет оценки Форвард интервалов
+        /// </summary>
+        List<Forvard> CalcForvardEstimate()
+        {
+            List<Forvard> result = new List<Forvard>();
+            
+            foreach (ForvardReportModel frModel in ForvardReports)
+            {
+                if (frModel.DetailsForvard.Count <= 0)
+                    continue;
+
+                Forvard f = new Forvard();
+                f._typeIs = frModel.PeriodTypeInSample;
+                f._typeOs = frModel.PeriodTypeOutOfSample;
+                f._periodIs = frModel.PeriodInSample;
+                f._periodOs = frModel.PeriodOutOfSample;
+                f._estimate = 0;
+
+                foreach( ReportOptimModel mdl in frModel.DetailsForvard )
+                {
+                    Statistic inS = mdl.StatisticsInSample;
+                    Statistic outS = mdl.StatisticsOutOfSample;
+
+                    if (inS.YearProfitLossPercent == 0 || inS.ProfitDealsPercents == 0 ||
+                        inS.MaxDrownDownPercent == 0  || inS.FactorRecovery == 0 || inS.CountDeals == 0 )                        
+                    {
+                        continue;
+                    }
+                    double kPeriod = f._periodIs / f._periodOs;
+                    f._estimate += (outS.YearProfitLossPercent / inS.YearProfitLossPercent +
+                    outS.ProfitDealsPercents / inS.ProfitDealsPercents +
+                    outS.MaxDrownDownPercent / inS.MaxDrownDownPercent +
+                    outS.FactorRecovery / inS.FactorRecovery + 
+                    outS.CountDeals * kPeriod / inS.CountDeals );
+                }
+                f._estimate /= frModel.DetailsForvard.Count;
+                result.Add(f);
+            }
+            return result;
+        }
+        /// <summary>
         ///  Окончание каждого прохода оптимизации
         /// </summary>
         public override void SetUserStatisticParamOnEndTest( ReportEndOptimForStatistic report )
-        {
+        {   
+
             var oParams = OptimParams;
             var uStat = UserStatistics;
-            Statistic stat = report.Statistic; 
-            
-            if( 
+            Statistic stat = report.Statistic;
+            _startDate = stat.StartTime;
+            _endDate = stat.EndTime;
+            _capital = stat.InitialCapital;
+
+            if ( 
                 stat.NetProfitLossPercent >= uStat[0].Value  && 
                 Math.Abs( stat.MaxDrownDownPercent ) <= uStat[1].Value &&
                 stat.FactorRecovery >= uStat[2].Value  &&
@@ -48,11 +95,16 @@ namespace EstimationStatNorm
                )
             {
                 EstimationStat est = new EstimationStat();
+                est._forvard = CalcForvardEstimate();
                 est.profit = stat.NetProfitLossPercent;
                 est.averageDeal = stat.AvaregeProfitLossPercent;
                 est.recoveryFactor = stat.FactorRecovery;
                 est.dealCount = stat.TradeDealsList.Count;
                 est.drawDown = Math.Abs( stat.MaxDrownDownPercent );
+                est.commission = stat.TotalComission;
+                est.slippage = stat.TotalSlippage;
+                est.yearProfit = stat.YearProfitLossPercent;
+                est.profitDeals = stat.ProfitDealsPercents;
                 est.symbol = report.Symbol;
 
                 if (report.TimeFrameType.Equals("Минута"))
@@ -95,10 +147,10 @@ namespace EstimationStatNorm
         public override List<UserParamModel> CreateUserStatisticParam()
         {
             List<UserParamModel> list = new List<UserParamModel>();
-            list.Add(new UserParamModel { Name = "Profit ( % ) >= ", Value = 1, IsOptimization = false });
-            list.Add(new UserParamModel { Name = "Drawdown ( % ) <= ", Value = 50, IsOptimization = false });
-            list.Add(new UserParamModel { Name = "Recovery Factor >= ", Value = 1, IsOptimization = false });
-            list.Add(new UserParamModel { Name = "Deal profit ( % ) >= ", Value = 0.3, IsOptimization = false });
+            list.Add(new UserParamModel { Name = "Profit ( % ) >= ", Value = 1, Weight = 1,  IsOptimization = false });
+            list.Add(new UserParamModel { Name = "Drawdown ( % ) <= ", Value = 50, Weight = 1, IsOptimization = false });
+            list.Add(new UserParamModel { Name = "Recovery Factor >= ", Value = 1, Weight = 1, IsOptimization = false });
+            list.Add(new UserParamModel { Name = "Deal profit ( % ) >= ", Value = 0.3, Weight = 1, IsOptimization = false });
             return list;
         }
 
@@ -125,24 +177,30 @@ namespace EstimationStatNorm
 
     public class EstimationStat
     {
-        public double profit = 0; // Профит
-        public double drawDown = 0; // Максимальная просадка
+        public double profit = 0; // Профит ( % )
+        public double drawDown = 0; // Максимальная просадка ( % )
         public double recoveryFactor = 0; // Факттор восстановления
-        public double averageDeal = 0; // Средняя прибыль на сделку
+        public double averageDeal = 0; // Средняя прибыль на сделку ( % )
         public double dealCount = 0; // Количество сделок 
-        public string symbol = "";
-        public string tfType = "";
-        public int tfPeriod = 0;
+        public double commission = 0; // комиссия 
+        public double slippage = 0;// Проскальзывание 
+        public double yearProfit = 0;// Среднегодовая прибыл ( % )
+        public double profitDeals = 0;// Процент прибыльных сделок
+        public string symbol = ""; // Инструмент
+        public string tfType = ""; // Тип ТФ
+        public int tfPeriod = 0; // Период ТФ
         public double total = 0; // Общий критерий оценки
         public double normTotal = 0; // Нормированный Общий критерий оценки
         public double paramTotal = 0; // Общий фактор по параметрам
         public double paramNorm = 0; // Нормированный критерий по параметроам
         public List<UserParam>? userParam = null;// Параметры оптимизации
-        public int targetIdx = -1;
-
+        public int targetIdx = -1; // 
+        public List<Forvard> _forvard; // Результаты оцненок форвард для данного слоя
+ 
         public EstimationStat()
         {
             userParam = new List<UserParam>();
+            _forvard = new List<Forvard>();
         }
     };
     /// <summary>
@@ -154,6 +212,7 @@ namespace EstimationStatNorm
         ClientReport? _totalPDF = null;
         List<Action>? _totalActions = null;
         bool _addStrategyInfo = true;
+        bool _addStrategyInfoTotal = true;
         List<List<EstimationStat>> _statContainer;       
         string[] _statNames = { "Profit", "DD", "Recovery", "Avg. Deal", "Deal Count" };
         int _reportCount = 0;
@@ -386,23 +445,26 @@ namespace EstimationStatNorm
             }
         }
         /// <summary>
-        /// Тест экспорта PDF через Export.dll
+        /// Поиск максимальной оценки форвард 
         /// </summary>
-        public void TestPDF(string path, string fName)
+        Forvard ForvardByMaxEvaluation(List<EstimationStat> estStat )
         {
-            using (ClientReport rep = new ClientReport())
+            double eval = double.MinValue;
+            Forvard? res = null;
+
+            foreach (EstimationStat stat in estStat)
             {
-                rep.SetExport(new Pdf(path, fName));
-                rep.GenerateReport(new List<Action>()
+                foreach( Forvard f in stat._forvard )
                 {
-                    () => rep.AddText(new Text("Helllooooooooooooooooooo", new SettingText())),
-                    () => rep.AddChart(new Chart(new Histogram(new List<double> () { 0.1, 0.14, 0.28, 0.9, 0.14, 0.6, 0.44, 0.63 }, new SettingChart()))),
-                });
-
-                rep.SaveDocument();
+                    if( f._estimate > eval )
+                    {
+                        eval = f._estimate;
+                        res = f;
+                    }
+                }
             }
+            return  res;
         }
-
         /// <summary>
         /// Экспорт PDF через Export.dll
         /// </summary>
@@ -412,6 +474,11 @@ namespace EstimationStatNorm
                 return;
 
             //Подготовка текстового блока 
+            SettingText setTxtJustify = new SettingText();
+            setTxtJustify.FontSize = 12;
+            setTxtJustify.FontName = "Arial";
+            setTxtJustify.TextAligment = Export.Enums.Aligment.Justify;
+
             SettingText setTxt = new SettingText();
             setTxt.FontSize = 12;
             setTxt.FontName = "Arial";
@@ -423,19 +490,21 @@ namespace EstimationStatNorm
             setTxtCenter.TextAligment = Export.Enums.Aligment.Center;
 
             SettingText setTxtBold = new SettingText();
-            setTxtBold.FontSize = 14;
+            setTxtBold.FontSize = 12;
             setTxtBold.FontName = "Arial";
             setTxtBold.TextAligment = Export.Enums.Aligment.Left;
             setTxtBold.Bold = true;
-
+           
             string strategyName = "Наименование стратегии: " + _mdl.ParamOptimStrategy.NameStrategy;
             string Version = "Версия: " + _mdl.ParamOptimStrategy.Version;
             string Author = "Автор: " + _mdl.ParamOptimStrategy.Author;
             string dateModify = "Дата последней модификации: " + _mdl.ParamOptimStrategy.DateChange;
+            string testPeriod = "Период тестирования: " + _mdl._startDate.ToString() + " - " + _mdl._endDate.ToString();
+            string startCapital = "Стартовый капитал: " + _mdl._capital;
             string symbTF = estStat[0].symbol + "\t" + estStat[0].tfType + " " + estStat[0].tfPeriod.ToString();
-            string noResult = "По текущему инмтрументу на данном временном периоде, система не имеет устойчивых показателей.";          
+            string noResult = "По текущему инcтрументу на данном временном периоде система не имеет устойчивых показателей.";          
             ClientReport rep = new ClientReport();
-            rep.SetExport(new Pdf(path, fName));
+            rep.SetExport(new Pdf(path, fName, false));
 
             // Если отсутствует результат
             if( result == null )
@@ -463,7 +532,6 @@ namespace EstimationStatNorm
                     _addStrategyInfo = false;
                 }
                 _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
-                _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
                 _totalActions.Add(() => rep.AddText(new Text(noResult, setTxt)));
                 return;
             }
@@ -471,13 +539,15 @@ namespace EstimationStatNorm
             List<EstimationStat> sort = estStat.OrderBy(x => x.paramNorm).ToList();
             string chartName = "Диаграмма плотности распределения оценки результатов оптимизации";
             string chartDesc = "Данная диаграмма показывает зависимость интегрированного показателя статистической оценки " +
-                " относительно совокупного фактора парамеров оптимизации. Значения по горизонтальной оси, это индекс прохода в результирующей таблице которая представлена" +
+                " относительно совокупного фактора парамеров оптимизации. Значения по горизонтальной оси - это индекс прохода в результирующей таблице которая представлена" +
                 " в " + fName + ".xlsx" + " файле. Данные в таблице упорядочены по фактору параметров.";
-            string strResult = "По итогам оптимизации, рекомендованы к использованию следующие параметры:\n\n";
+            string strResult = "По итогам оптимизации рекомендованы к использованию следующие параметры:\n";
             //данные для таблицы выбранных параметров. 
             HeaderTable htbl = new HeaderTable();
-            htbl.Headers = new List<string>{ "Нименование", "Значение"};
-            TableModel tableMdl = new TableModel( htbl, new TableSetting(), new List<List<object>>());
+            htbl.Headers = new List<string>{ "Наименование", "Значение"};
+            TableSetting tableSet = new TableSetting();
+            tableSet.SettingText.TextAligment = Export.Enums.Aligment.Center;
+            TableModel tableMdl = new TableModel( htbl, tableSet, new List<List<object>>());
 
             for (int i = 0; i < result.userParam.Count; i++)
             {
@@ -486,6 +556,65 @@ namespace EstimationStatNorm
                      result.userParam[i].name,
                      result.userParam[i].value
                  });
+            }
+            //данные для таблицы стат. показателей
+            HeaderTable hTblStat = new HeaderTable();
+            hTblStat.Headers = new List<string> { "", "" };
+            TableSetting tableSetStat = new TableSetting();
+            tableSetStat.SettingText.TextAligment = Export.Enums.Aligment.Left;
+            tableSetStat.TableBorderSetting = new TableBorderSetting() { BorderLineStyle = Export.Enums.BorderLineStyle.None };
+            tableSetStat.TableBorderInsideSetting = new TableBorderInsideSetting() { BorderLineStyle = Export.Enums.BorderLineStyle.None };
+            TableModel tableMdlStat = new TableModel(hTblStat, tableSetStat, new List<List<object>>());
+
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Доходность за период ( % )",  
+                result.profit,
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Среднегодовая доходность ( % )",
+                result.yearProfit
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Средняя прибыль на сделку ( % )",
+                result.averageDeal,
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Процент прибыльных сделок ( % )",
+                result.profitDeals
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Количество сделок",
+                result.dealCount,
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Максимальная просадка ( % )",
+                result.drawDown,
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Комисиия на сделку ( % )",
+                result.commission,
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Величина Проскальзывания",
+                result.slippage
+            });
+            // Данные по результатам форвард оптимизации
+            Forvard f = ForvardByMaxEvaluation(estStat);
+            string forvardResult = "";
+
+            if( f != null)
+            {
+                forvardResult += "In sample (" + f._typeIs + "): " + f._periodIs.ToString() + ";  ";
+                forvardResult += "Out of sample (" + f._typeOs +"): " + f._periodOs.ToString() + ";  ";
+                forvardResult += "Кэф. устойчивости: " + Math.Round(f._estimate, 2 ).ToString();
             }
             // Заполняем данные для диаграммы
             List<double> chartData = new List<double>();
@@ -505,44 +634,57 @@ namespace EstimationStatNorm
             // создание отчета
             rep.GenerateReport(new List<Action>()
             {
-                () => rep.AddText(new Text(strategyName, setTxt)),
+                () => rep.AddText(new Text(strategyName, setTxtBold)),
                 () => rep.AddText(new Text(Version, setTxt)),
                 () => rep.AddText(new Text(Author, setTxt)),
                 () => rep.AddText(new Text(dateModify, setTxt)),
+                () => rep.AddText(new Text("\n")),
+                () => rep.AddText(new Text(testPeriod, setTxt)),
+                () => rep.AddText(new Text(startCapital, setTxt)),
                 () => rep.AddText(new Text("\n")),
                 () => rep.AddText(new Text(symbTF, setTxtBold)),
                 () => rep.AddText(new Text("\n")),
                 () => rep.AddText(new Text(chartName, setTxtCenter)),
                 () => rep.AddChart(new Chart(new Histogram( chartData, markerStart, markerCount ))),
-                () => rep.AddText(new Text(chartDesc, setTxt, new HyperLink()
+                () => rep.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
                 {
                     LinkText = fName + ".xlsx",
                     TargetLink = path + "\\" + fName + ".xlsx"
                 })),
                 () => rep.AddText(new Text("\n")),
                 () => rep.AddText(new Text(strResult, setTxt)),
-                () => rep.AddTable(tableMdl)
+                () => rep.AddTable(tableMdl),
+                () => rep.AddText(new Text("Показатели статистики соответствущие рекомендованным параметрам.", setTxtBold)),
+                () => rep.AddTable(tableMdlStat),
+                //() => rep.AddText(new Text("\n")),
+                () => rep.AddText(new Text("По результатам форвард оптимизации рекоммендуются следующие интервалы:", setTxtBold )),
+                () => rep.AddText(new Text(forvardResult, setTxt))
              });
              //rep.OpenPreview();
              rep.SaveDocument();
              //Добавляем данные в глобальный отчет
-             if( _addStrategyInfo)
+             if( _addStrategyInfoTotal)
              {
                  _totalActions.Add(() => _totalPDF.AddText(new Text(strategyName, setTxt)));
                  _totalActions.Add(() => _totalPDF.AddText(new Text(Version, setTxt)));
                  _totalActions.Add(() => _totalPDF.AddText(new Text(Author, setTxt)));
                  _totalActions.Add(() => _totalPDF.AddText(new Text(dateModify, setTxt)));
                  _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
-                 _addStrategyInfo = false;
+                 _addStrategyInfoTotal = false;
              }
              _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
              _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
              _totalActions.Add(() => _totalPDF.AddText(new Text(chartName, setTxtCenter)));
              _totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
+             _totalActions.Add(() => _totalPDF.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
+             {
+                LinkText = fName + ".xlsx",
+                TargetLink = path + "\\" + fName + ".xlsx"
+             })));
              _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
              _totalActions.Add(() => _totalPDF.AddText(new Text(strResult, setTxt)));
              _totalActions.Add(() => _totalPDF.AddTable(tableMdl));
-             //_totalPDF.AddNewPage();
+             _totalActions.Add(() => _totalPDF.AddNewPage());
         }
         /// <summary>
         /// Экспорт Excell 
@@ -551,7 +693,7 @@ namespace EstimationStatNorm
         {
             if (estStat.Count <= 0)
                 return;
-
+            // Данные по оптимизации
             HeaderTable htbl = new HeaderTable();
             htbl.Headers = new List<string>();
             htbl.Headers.Add("Symbol");
@@ -595,11 +737,44 @@ namespace EstimationStatNorm
                 tableMdl.TableData.Add(tObjects);
             }
 
+            // Данные по форвард
+            HeaderTable htblForvard = new HeaderTable();
+            htblForvard.Headers = new List<string>();
+
+            for (int i = 0; i < estStat[0].userParam.Count; i++)
+            {
+                htblForvard.Headers.Add(estStat[0].userParam[i].name);
+            }
+            htblForvard.Headers.Add("PeriodIn(" + sort[0]._forvard[0]._typeIs + ")");
+            htblForvard.Headers.Add("PeriodOut(" + sort[0]._forvard[0]._typeOs + ")");
+            htblForvard.Headers.Add("Evaluation");
+            TableModel tableMdlForvard = new TableModel(htblForvard, new TableSetting(), new List<List<object>>());
+
+            for (int i = 0; i < sort.Count; i++)
+            {
+                foreach (Forvard f in sort[i]._forvard)
+                {
+                    List<object> tObjectsForvard = new List<object>();
+
+                    for (int j = 0; j < sort[i].userParam.Count; j++)
+                    {
+                        tObjectsForvard.Add(sort[i].userParam[j].value);
+                    }
+                    tObjectsForvard.Add(f._periodIs);
+                    tObjectsForvard.Add(f._periodOs);
+                    tObjectsForvard.Add(f._estimate);
+                    tableMdlForvard.TableData.Add(tObjectsForvard);
+                }
+            }
+
+            // Выод отчета
             ClientReport rep = new ClientReport();
-            rep.SetExport(new Excel(path, fName));
+            rep.SetExport(new Excel(path, fName, "Optimization"));
             rep.GenerateReport(new List<Action>()
             {
-                () => rep.AddTable(tableMdl)
+                () => rep.AddTable(tableMdl),
+                () => rep.AddNewPage("Forvard"),
+                () => rep.AddTable(tableMdlForvard)
             });
             rep.SaveDocument();
         }
@@ -678,5 +853,16 @@ namespace EstimationStatNorm
                 sw.Close();
             }
         }
+    }
+    /// <summary>
+    /// FRVARD ОПТИМИЗАЦИЯ
+    /// </summary>
+    public class Forvard
+    {
+        public string _typeIs = "";
+        public int _periodIs = 0;
+        public string _typeOs = "";
+        public int _periodOs = 0;
+        public double _estimate = 0;
     }
 }
