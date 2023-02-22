@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using System.Data;
-//using System.Windows.Media;
 using ScriptSolution.Model.OptimizationResul;
 using Export;
 using Export.ModelsExport;
@@ -22,16 +21,21 @@ namespace EstimationStatNorm
     public class EstimationStatNorm : StatisticScript
     {
         StatContainer? _stat = null;
+        StatContainer? _statInSample = null;
         public DateTime? _startDate = null; // Начало периода оптимизации
         public DateTime? _endDate = null; // Окончание периода оптимизации
-        public double _capital = 0; // Начальный капитал       
+        public double _capital = 0; // Начальный капитал
+        public int _inSamplePeriod = 0;// Расчетный период In Sample 
+        public bool _inSampleTest = false;
+        public bool _forvard = false;
+
         /// <summary>
         ///  Начало цикла оптимизации
         /// </summary>
         public override void StartOptimization()
         {
             _stat = new StatContainer( this );
-            //_clientRep = new ClientReport();
+            _statInSample = new StatContainer( this );
         }
         /// <summary>
         ///  Расчет оценки Форвард интервалов
@@ -79,7 +83,6 @@ namespace EstimationStatNorm
         /// </summary>
         public override void SetUserStatisticParamOnEndTest( ReportEndOptimForStatistic report )
         {   
-
             var oParams = OptimParams;
             var uStat = UserStatistics;
             Statistic stat = report.Statistic;
@@ -95,7 +98,15 @@ namespace EstimationStatNorm
                )
             {
                 EstimationStat est = new EstimationStat();
-                est._forvard = CalcForvardEstimate();
+
+                if (ForvardReports.Count > 0)
+                {
+                    est._forvard = CalcForvardEstimate();
+                    _forvard = true;
+                }
+                else
+                    _forvard = false;
+
                 est.profit = stat.NetProfitLossPercent;
                 est.averageDeal = stat.AvaregeProfitLossPercent;
                 est.recoveryFactor = stat.FactorRecovery;
@@ -123,7 +134,11 @@ namespace EstimationStatNorm
                     up.value = oParams[i].Value;
                     est.userParam.Add(up);
                 }
-                _stat.AddStat( est );
+
+                if (_inSampleTest)
+                    _statInSample.AddStat(est);
+                else
+                    _stat.AddStat( est );
             }
         }
 
@@ -132,7 +147,21 @@ namespace EstimationStatNorm
         /// </summary>
         public override void EndOptimizationCycle()
         {
-            _stat.BuildReport();            
+            if (_inSampleTest)
+            {
+                _statInSample.BuildReport();
+                _inSampleTest = false;
+            }
+            else
+                _stat.BuildReport();
+            // Активируем повторный тест для in sample 
+            if ( _inSamplePeriod > 0 )
+            {
+                PeriodRestartOptimization = _inSamplePeriod;
+                IsRestartOptimizationWithNewData = true;
+                _inSampleTest = true;
+                _inSamplePeriod = 0;
+            }
         }
         /// <summary>
         ///  Окончание процеса оптимизации
@@ -156,7 +185,7 @@ namespace EstimationStatNorm
 
         public override void GetAttributes()
         {
-            DesParamStratetgy.Version = "9";
+            DesParamStratetgy.Version = "11";
             DesParamStratetgy.DateRelease = "16.01.2023";
             DesParamStratetgy.DateChange = "24.01.2023";
             DesParamStratetgy.Description = "";
@@ -195,7 +224,7 @@ namespace EstimationStatNorm
         public double paramNorm = 0; // Нормированный критерий по параметроам
         public List<UserParam>? userParam = null;// Параметры оптимизации
         public int targetIdx = -1; // 
-        public List<Forvard> _forvard; // Результаты оцненок форвард для данного слоя
+        public List<Forvard>? _forvard = null; // Результаты оцненок форвард для данного слоя
  
         public EstimationStat()
         {
@@ -222,6 +251,11 @@ namespace EstimationStatNorm
             _mdl = mdl; 
             _statContainer = new List<List<EstimationStat>>();
             _totalPDF = new ClientReport();
+            string nameTotal = "Total";
+            
+            if (_mdl._inSampleTest)
+                nameTotal += "(In Sample)";
+
             _totalPDF.SetExport(new Pdf(_mdl.PathSaveResult, "total"));
             _totalActions = new List<Action>();
         }
@@ -437,10 +471,12 @@ namespace EstimationStatNorm
                 string fName = _statContainer[i][0].symbol + "_";
                 fName += _statContainer[i][0].tfType + "_";
                 fName += _statContainer[i][0].tfPeriod;
-                //SaveResultCSV(_statContainer[i], result, path + "\\" + fName + ".csv", ";");
+                
+                if (_mdl._inSampleTest)
+                    fName += "(In Sample)";
+          
                 ExportReportExcell(_statContainer[i], path, fName);
                 ExportReportPDF( _statContainer[i], result, path, fName );
-                //TestPDF(path, fName);
                 _reportCount++;
             }
         }
@@ -449,6 +485,9 @@ namespace EstimationStatNorm
         /// </summary>
         Forvard ForvardByMaxEvaluation(List<EstimationStat> estStat )
         {
+            if ( !_mdl._forvard)
+                return null;
+
             double eval = double.MinValue;
             Forvard? res = null;
 
@@ -495,13 +534,18 @@ namespace EstimationStatNorm
             setTxtBold.TextAligment = Export.Enums.Aligment.Left;
             setTxtBold.Bold = true;
            
-            string strategyName = "Наименование стратегии: " + _mdl.ParamOptimStrategy.NameStrategy;
+            string strategyName = "Наименование стратегии: " + _mdl.ParamOptimStrategy.NameStrategy + "\n";
             string Version = "Версия: " + _mdl.ParamOptimStrategy.Version;
             string Author = "Автор: " + _mdl.ParamOptimStrategy.Author;
-            string dateModify = "Дата последней модификации: " + _mdl.ParamOptimStrategy.DateChange;
+            string dateModify = "Дата последней модификации: " + _mdl.ParamOptimStrategy.DateChange + "\n";
             string testPeriod = "Период тестирования: " + _mdl._startDate.ToString() + " - " + _mdl._endDate.ToString();
-            string startCapital = "Стартовый капитал: " + _mdl._capital;
+            string startCapital = "Стартовый капитал: " + _mdl._capital + "\n";
             string symbTF = estStat[0].symbol + "\t" + estStat[0].tfType + " " + estStat[0].tfPeriod.ToString();
+
+            if (_mdl._inSampleTest)
+                symbTF += " ( In Sample )";
+            symbTF += "\n";
+
             string noResult = "По текущему инcтрументу на данном временном периоде система не имеет устойчивых показателей.";          
             ClientReport rep = new ClientReport();
             rep.SetExport(new Pdf(path, fName, false));
@@ -532,16 +576,18 @@ namespace EstimationStatNorm
                     _addStrategyInfo = false;
                 }
                 _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
-                _totalActions.Add(() => rep.AddText(new Text(noResult, setTxt)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(noResult, setTxt)));
                 return;
             }
+            
             // Сортируем данные и готвим объекты для отчета
             List<EstimationStat> sort = estStat.OrderBy(x => x.paramNorm).ToList();
-            string chartName = "Диаграмма плотности распределения оценки результатов оптимизации";
+            string chartName = "Диаграмма плотности распределения оценки результатов оптимизации\n";
             string chartDesc = "Данная диаграмма показывает зависимость интегрированного показателя статистической оценки " +
                 " относительно совокупного фактора парамеров оптимизации. Значения по горизонтальной оси - это индекс прохода в результирующей таблице которая представлена" +
-                " в " + fName + ".xlsx" + " файле. Данные в таблице упорядочены по фактору параметров.";
+                " в " + fName + ".xlsx" + " файле. Данные в таблице упорядочены по фактору параметров.\n";
             string strResult = "По итогам оптимизации рекомендованы к использованию следующие параметры:\n";
+            
             //данные для таблицы выбранных параметров. 
             HeaderTable htbl = new HeaderTable();
             htbl.Headers = new List<string>{ "Наименование", "Значение"};
@@ -612,6 +658,7 @@ namespace EstimationStatNorm
 
             if( f != null)
             {
+                _mdl._inSamplePeriod = f._periodIs;
                 forvardResult += "In sample (" + f._typeIs + "): " + f._periodIs.ToString() + ";  ";
                 forvardResult += "Out of sample (" + f._typeOs +"): " + f._periodOs.ToString() + ";  ";
                 forvardResult += "Кэф. устойчивости: " + Math.Round(f._estimate, 2 ).ToString();
@@ -632,36 +679,34 @@ namespace EstimationStatNorm
                 markerCount = 7; 
             }
             // создание отчета
-            rep.GenerateReport(new List<Action>()
+            List<Action> act = new List<Action>();
+            act.Add(() => rep.AddText(new Text(strategyName, setTxtBold)));
+            act.Add(() => rep.AddText(new Text(Version, setTxt)));
+            act.Add(() => rep.AddText(new Text(Author, setTxt)));
+            act.Add(() => rep.AddText(new Text(dateModify, setTxt)));
+            act.Add(() => rep.AddText(new Text(testPeriod, setTxt)));
+            act.Add(() => rep.AddText(new Text(startCapital, setTxt)));
+            act.Add(() => rep.AddText(new Text(symbTF, setTxtBold)));
+            act.Add(() => rep.AddText(new Text(chartName, setTxtCenter)));
+            act.Add(() => rep.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
+            act.Add(() => rep.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
             {
-                () => rep.AddText(new Text(strategyName, setTxtBold)),
-                () => rep.AddText(new Text(Version, setTxt)),
-                () => rep.AddText(new Text(Author, setTxt)),
-                () => rep.AddText(new Text(dateModify, setTxt)),
-                () => rep.AddText(new Text("\n")),
-                () => rep.AddText(new Text(testPeriod, setTxt)),
-                () => rep.AddText(new Text(startCapital, setTxt)),
-                () => rep.AddText(new Text("\n")),
-                () => rep.AddText(new Text(symbTF, setTxtBold)),
-                () => rep.AddText(new Text("\n")),
-                () => rep.AddText(new Text(chartName, setTxtCenter)),
-                () => rep.AddChart(new Chart(new Histogram( chartData, markerStart, markerCount ))),
-                () => rep.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
-                {
-                    LinkText = fName + ".xlsx",
-                    TargetLink = path + "\\" + fName + ".xlsx"
-                })),
-                () => rep.AddText(new Text("\n")),
-                () => rep.AddText(new Text(strResult, setTxt)),
-                () => rep.AddTable(tableMdl),
-                () => rep.AddText(new Text("Показатели статистики соответствущие рекомендованным параметрам.", setTxtBold)),
-                () => rep.AddTable(tableMdlStat),
-                //() => rep.AddText(new Text("\n")),
-                () => rep.AddText(new Text("По результатам форвард оптимизации рекоммендуются следующие интервалы:", setTxtBold )),
-                () => rep.AddText(new Text(forvardResult, setTxt))
-             });
-             //rep.OpenPreview();
-             rep.SaveDocument();
+                LinkText = fName + ".xlsx",
+                TargetLink = path + "\\" + fName + ".xlsx"
+            })));
+            act.Add(() => rep.AddText(new Text(strResult, setTxt)));
+            act.Add(() => rep.AddTable(tableMdl));
+            act.Add(() => rep.AddText(new Text("Показатели статистики соответствущие рекомендованным параметрам.\n", setTxtBold)));
+            act.Add(() => rep.AddTable(tableMdlStat));
+
+            if (_mdl._forvard )
+            {
+                act.Add(() => rep.AddText(new Text("По результатам форвард оптимизации рекоммендуются следующие интервалы:\n", setTxtBold)));
+                act.Add(() => rep.AddText(new Text(forvardResult, setTxt)));
+            }
+            rep.GenerateReport(act);
+            rep.SaveDocument();
+             
              //Добавляем данные в глобальный отчет
              if( _addStrategyInfoTotal)
              {
@@ -669,11 +714,11 @@ namespace EstimationStatNorm
                  _totalActions.Add(() => _totalPDF.AddText(new Text(Version, setTxt)));
                  _totalActions.Add(() => _totalPDF.AddText(new Text(Author, setTxt)));
                  _totalActions.Add(() => _totalPDF.AddText(new Text(dateModify, setTxt)));
-                 _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
+                 _totalActions.Add(() => _totalPDF.AddText(new Text(testPeriod, setTxt)));
+                 _totalActions.Add(() => _totalPDF.AddText(new Text(startCapital, setTxt)));
                  _addStrategyInfoTotal = false;
              }
              _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
-             _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
              _totalActions.Add(() => _totalPDF.AddText(new Text(chartName, setTxtCenter)));
              _totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
              _totalActions.Add(() => _totalPDF.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
@@ -681,9 +726,16 @@ namespace EstimationStatNorm
                 LinkText = fName + ".xlsx",
                 TargetLink = path + "\\" + fName + ".xlsx"
              })));
-             _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
              _totalActions.Add(() => _totalPDF.AddText(new Text(strResult, setTxt)));
              _totalActions.Add(() => _totalPDF.AddTable(tableMdl));
+             _totalActions.Add(() => _totalPDF.AddText(new Text("Показатели статистики соответствущие рекомендованным параметрам.\n", setTxtBold)));
+             _totalActions.Add(() => _totalPDF.AddTable(tableMdlStat));
+
+             if (!_mdl._inSampleTest)
+             {
+                _totalActions.Add(() => _totalPDF.AddText(new Text("По результатам форвард оптимизации рекоммендуются следующие интервалы:\n", setTxtBold)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(forvardResult, setTxt)));
+             }
              _totalActions.Add(() => _totalPDF.AddNewPage());
         }
         /// <summary>
@@ -736,46 +788,52 @@ namespace EstimationStatNorm
                 tObjects.Add(sort[i].paramNorm.ToString());
                 tableMdl.TableData.Add(tObjects);
             }
-
+            
             // Данные по форвард
             HeaderTable htblForvard = new HeaderTable();
             htblForvard.Headers = new List<string>();
+            TableModel? tableMdlForvard = null;
 
-            for (int i = 0; i < estStat[0].userParam.Count; i++)
+            if (_mdl._forvard )
             {
-                htblForvard.Headers.Add(estStat[0].userParam[i].name);
-            }
-            htblForvard.Headers.Add("PeriodIn(" + sort[0]._forvard[0]._typeIs + ")");
-            htblForvard.Headers.Add("PeriodOut(" + sort[0]._forvard[0]._typeOs + ")");
-            htblForvard.Headers.Add("Evaluation");
-            TableModel tableMdlForvard = new TableModel(htblForvard, new TableSetting(), new List<List<object>>());
-
-            for (int i = 0; i < sort.Count; i++)
-            {
-                foreach (Forvard f in sort[i]._forvard)
+                for (int i = 0; i < estStat[0].userParam.Count; i++)
                 {
-                    List<object> tObjectsForvard = new List<object>();
+                    htblForvard.Headers.Add(estStat[0].userParam[i].name);
+                }
+                htblForvard.Headers.Add("PeriodIn(" + sort[0]._forvard[0]._typeIs + ")");
+                htblForvard.Headers.Add("PeriodOut(" + sort[0]._forvard[0]._typeOs + ")");
+                htblForvard.Headers.Add("Evaluation");
+                tableMdlForvard = new TableModel(htblForvard, new TableSetting(), new List<List<object>>());
 
-                    for (int j = 0; j < sort[i].userParam.Count; j++)
+                for (int i = 0; i < sort.Count; i++)
+                {
+                    foreach (Forvard f in sort[i]._forvard)
                     {
-                        tObjectsForvard.Add(sort[i].userParam[j].value);
+                        List<object> tObjectsForvard = new List<object>();
+
+                        for (int j = 0; j < sort[i].userParam.Count; j++)
+                        {
+                            tObjectsForvard.Add(sort[i].userParam[j].value);
+                        }
+                        tObjectsForvard.Add(f._periodIs);
+                        tObjectsForvard.Add(f._periodOs);
+                        tObjectsForvard.Add(f._estimate);
+                        tableMdlForvard.TableData.Add(tObjectsForvard);
                     }
-                    tObjectsForvard.Add(f._periodIs);
-                    tObjectsForvard.Add(f._periodOs);
-                    tObjectsForvard.Add(f._estimate);
-                    tableMdlForvard.TableData.Add(tObjectsForvard);
                 }
             }
-
             // Выод отчета
             ClientReport rep = new ClientReport();
             rep.SetExport(new Excel(path, fName, "Optimization"));
-            rep.GenerateReport(new List<Action>()
+            List<Action> act = new List<Action>();
+            act.Add(() => rep.AddTable(tableMdl));
+
+            if (_mdl._forvard )
             {
-                () => rep.AddTable(tableMdl),
-                () => rep.AddNewPage("Forvard"),
-                () => rep.AddTable(tableMdlForvard)
-            });
+                act.Add(() => rep.AddNewPage("Forvard"));
+                act.Add(() => rep.AddTable(tableMdlForvard));
+            }
+            rep.GenerateReport(act);
             rep.SaveDocument();
         }
         /// <summary>
