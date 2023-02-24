@@ -14,6 +14,7 @@ using Export.Models.Charts;
 using System.Windows;
 using System.Xml.Linq;
 using System.Net;
+using Export.Enums;
 
 namespace EstimationStatNorm
 {
@@ -577,8 +578,8 @@ namespace EstimationStatNorm
             hTblStat.Headers = new List<string> { "", "" };
             TableSetting tableSetStat = new TableSetting();
             tableSetStat.SettingText.TextAligment = Export.Enums.Aligment.Left;
-            tableSetStat.TableBorderSetting = new TableBorderSetting() { BorderLineStyle = Export.Enums.BorderLineStyle.None };
-            tableSetStat.TableBorderInsideSetting = new TableBorderInsideSetting() { BorderLineStyle = Export.Enums.BorderLineStyle.None };
+            tableSetStat.TableBorderSetting = new TableBorderSetting() { BorderLineStyle = SettingBorderLineStyle.None };
+            tableSetStat.TableBorderInsideSetting = new TableBorderInsideSetting() { BorderLineStyle = SettingBorderLineStyle.None };
             TableModel tableMdlStat = new TableModel(hTblStat, tableSetStat, new List<List<object>>());
 
             tableMdlStat.TableData.Add(new List<object>()
@@ -753,7 +754,11 @@ namespace EstimationStatNorm
             htbl.Headers.Add("Param. Norm");
             // Сортируем данные и готвим объекты для отчета
             List<EstimationStat> sort = estStat.OrderBy(x => x.paramNorm).ToList();
-            TableModel tableMdl = new TableModel(htbl, new TableSetting(), new List<List<object>>());
+            TableSetting tableSetStat = new TableSetting();
+            tableSetStat.SettingText.TextAligment = Export.Enums.Aligment.Center;
+            tableSetStat.TableBorderSetting = new TableBorderSetting() { BorderLineStyle = SettingBorderLineStyle.None };
+            tableSetStat.TableBorderInsideSetting = new TableBorderInsideSetting() { BorderLineStyle = SettingBorderLineStyle.None };
+            TableModel tableMdl = new TableModel(htbl, tableSetStat, new List<List<object>>());
 
             for (int i = 0; i < sort.Count; i++)
             {
@@ -790,7 +795,7 @@ namespace EstimationStatNorm
                 htblForvard.Headers.Add("PeriodIn(" + sort[0]._forvard[0]._typeIs + ")");
                 htblForvard.Headers.Add("PeriodOut(" + sort[0]._forvard[0]._typeOs + ")");
                 htblForvard.Headers.Add("Evaluation");
-                tableMdlForvard = new TableModel(htblForvard, new TableSetting(), new List<List<object>>());
+                tableMdlForvard = new TableModel(htblForvard, tableSetStat, new List<List<object>>());
 
                 for (int i = 0; i < sort.Count; i++)
                 {
