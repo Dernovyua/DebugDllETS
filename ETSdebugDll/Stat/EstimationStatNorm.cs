@@ -27,8 +27,6 @@ namespace EstimationStatNorm
         public DateTime? _startDate = null; // Начало периода оптимизации
         public DateTime? _endDate = null; // Окончание периода оптимизации
         public double _capital = 0; // Начальный капитал
-        public int _inSamplePeriod = 0;// Расчетный период In Sample 
-        public bool _inSampleTest = false;
         public bool _forvard = false;
 
         /// <summary>
@@ -36,8 +34,14 @@ namespace EstimationStatNorm
         /// </summary>
         public override void StartOptimization()
         {
+            string path = PathSaveResult;
+            path += "\\" + ParamOptimStrategy.NameStrategy + "\\";
+
+            if (!Directory.Exists(path))
+                Directory.CreateDirectory(path);
+
             _totalPDF = new ClientReport();
-            _totalPDF.SetExport(new Pdf(PathSaveResult, "Total", false));
+            _totalPDF.SetExport(new Pdf(path, "Total", false));
             _totalActions = new List<Action>();
             _stat = new StatContainer(this);
         }
@@ -147,15 +151,6 @@ namespace EstimationStatNorm
         public override void EndOptimizationCycle()
         {
             _stat.BuildReport();
-            _inSampleTest = false;
-            // Активируем повторный тест для in sample 
-            /*if ( _inSamplePeriod > 0 )
-            {
-                PeriodRestartOptimization = _inSamplePeriod;
-                IsRestartOptimizationWithNewData = true;
-                _inSampleTest = true;
-                _inSamplePeriod = 0;
-            }*/
             _stat = new StatContainer(this);
         }
         /// <summary>
@@ -180,7 +175,7 @@ namespace EstimationStatNorm
 
         public override void GetAttributes()
         {
-            DesParamStratetgy.Version = "14";
+            DesParamStratetgy.Version = "15";
             DesParamStratetgy.DateRelease = "16.01.2023";
             DesParamStratetgy.DateChange = "24.02.2023";
             DesParamStratetgy.Description = "";
@@ -428,22 +423,18 @@ namespace EstimationStatNorm
         /// </summary>
         public void BuildReport()
         {
-            string path = _mdl.PathSaveResult;            
+            string path = _mdl.PathSaveResult;
+            path += "\\" + _mdl.ParamOptimStrategy.NameStrategy + "\\";
+            
+            if(!Directory.Exists(path))
+                Directory.CreateDirectory(path);
+
             CaclNormStat();
             CaclNormParams();
-
             EstimationStat? result = ResultEstimationByClaster(_statContainer, 4, 0.5);
-                
-            if( result == null && _mdl._inSampleTest)
-                result = ResultEstimationMax(_statContainer);
-
             string fName = _statContainer[0].symbol + "_";
             fName += _statContainer[0].tfType + "_";
             fName += _statContainer[0].tfPeriod;
-                
-            if (_mdl._inSampleTest)
-                fName += "(In Sample)";
-          
             ExportReportExcell(_statContainer, path, fName);
             ExportReportPDF( _statContainer, result, path, fName );
         }
@@ -508,15 +499,7 @@ namespace EstimationStatNorm
             string testPeriod = "Период тестирования: " + _mdl._startDate.ToString() + " - " + _mdl._endDate.ToString();
             string startCapital = "Стартовый капитал: " + _mdl._capital + "\n";
             string symbTF = estStat[0].symbol + "\t" + estStat[0].tfType + " " + estStat[0].tfPeriod.ToString();
-
-            if (_mdl._inSampleTest)
-                symbTF += " ( In Sample )";
-            symbTF += "\n";
-
             string noResult = "По текущему инcтрументу на данном временном периоде система не имеет устойчивых показателей.";
-            string noClaster = "На данном In sample участке не удалось провести кластерный анализ устойчивости результатов. ";
-            noClaster += " Возможно, это связано с недостаточным количеством данных. ";
-            noClaster += " Параметры рекомендованы на основе выбора наилучшей интегрированной оценки. \n";
             ClientReport rep = new ClientReport();
             rep.SetExport(new Pdf(path, fName, false));
 
@@ -628,7 +611,6 @@ namespace EstimationStatNorm
 
             if( f != null)
             {
-                _mdl._inSamplePeriod = f._periodIs;
                 forvardResult += "In sample (" + f._typeIs + "): " + f._periodIs.ToString() + ";  ";
                 forvardResult += "Out of sample (" + f._typeOs +"): " + f._periodOs.ToString() + ";  ";
                 forvardResult += "Коэф. устойчивости: " + Math.Round(f._estimate, 2).ToString() + "\n\n";
@@ -659,22 +641,14 @@ namespace EstimationStatNorm
             act.Add(() => rep.AddText(new Text(testPeriod, setTxt)));
             act.Add(() => rep.AddText(new Text(startCapital, setTxt)));
             act.Add(() => rep.AddText(new Text(symbTF, setTxtBold)));
-            
-            if (result.targetIdx > 0)
+            act.Add(() => rep.AddText(new Text(chartName, setTxtCenter)));
+            act.Add(() => rep.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
+            act.Add(() => rep.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
             {
-                act.Add(() => rep.AddText(new Text(chartName, setTxtCenter)));
-                act.Add(() => rep.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
-                act.Add(() => rep.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
-                {
-                    LinkText = fName + ".xlsx",
-                    TargetLink = path + "\\" + fName + ".xlsx"
-                })));
-                act.Add(() => rep.AddText(new Text(strResult, setTxt)));
-            }
-            else
-            {
-                act.Add(() => rep.AddText(new Text( noClaster, setTxtJustify)));
-            }
+                LinkText = fName + ".xlsx",
+                TargetLink = path + "\\" + fName + ".xlsx"
+            })));
+            act.Add(() => rep.AddText(new Text(strResult, setTxt)));
             act.Add(() => rep.AddTable(tableMdl));
             act.Add(() => rep.AddText(new Text("Показатели статистики, соответствущие рекомендованным параметрам.\n", setTxtBold)));
             act.Add(() => rep.AddTable(tableMdlStat));
@@ -687,44 +661,36 @@ namespace EstimationStatNorm
             rep.GenerateReport(act);
             rep.SaveDocument();
              
-             //Добавляем данные в глобальный отчет
-             if( _addStrategyInfoTotal)
-             {
-                 _totalActions.Add(() => _totalPDF.AddText(new Text(strategyName, setTxt)));
-                 _totalActions.Add(() => _totalPDF.AddText(new Text(Version, setTxt)));
-                 _totalActions.Add(() => _totalPDF.AddText(new Text(Author, setTxt)));
-                 _totalActions.Add(() => _totalPDF.AddText(new Text(dateModify, setTxt)));
-                 _totalActions.Add(() => _totalPDF.AddText(new Text(testPeriod, setTxt)));
-                 _totalActions.Add(() => _totalPDF.AddText(new Text(startCapital, setTxt)));
-                 _addStrategyInfoTotal = false;
-             }
-             _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
-
-            if (result.targetIdx > 0)
+            //Добавляем данные в глобальный отчет
+            if( _addStrategyInfoTotal)
             {
-                _totalActions.Add(() => _totalPDF.AddText(new Text(chartName, setTxtCenter)));
-                _totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
-                _totalActions.Add(() => _totalPDF.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
-                {
-                    LinkText = fName + ".xlsx",
-                    TargetLink = path + "\\" + fName + ".xlsx"
-                })));
-                _totalActions.Add(() => _totalPDF.AddText(new Text(strResult, setTxt)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(strategyName, setTxt)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(Version, setTxt)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(Author, setTxt)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(dateModify, setTxt)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(testPeriod, setTxt)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(startCapital, setTxt)));
+                _addStrategyInfoTotal = false;
             }
-            else
+            _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
+            _totalActions.Add(() => _totalPDF.AddText(new Text(chartName, setTxtCenter)));
+            _totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
+            _totalActions.Add(() => _totalPDF.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
             {
-                _totalActions.Add(() => _totalPDF.AddText(new Text(noClaster, setTxtJustify)));
-            }
+                LinkText = fName + ".xlsx",
+                TargetLink = path + "\\" + fName + ".xlsx"
+            })));
+            _totalActions.Add(() => _totalPDF.AddText(new Text(strResult, setTxt)));
             _totalActions.Add(() => _totalPDF.AddTable(tableMdl));
-             _totalActions.Add(() => _totalPDF.AddText(new Text("Показатели статистики, соответствущие рекомендованным параметрам.\n", setTxtBold)));
-             _totalActions.Add(() => _totalPDF.AddTable(tableMdlStat));
+            _totalActions.Add(() => _totalPDF.AddText(new Text("Показатели статистики, соответствущие рекомендованным параметрам.\n", setTxtBold)));
+            _totalActions.Add(() => _totalPDF.AddTable(tableMdlStat));
 
-             if (_mdl._forvard)
-             {
+            if (_mdl._forvard)
+            {
                 _totalActions.Add(() => _totalPDF.AddText(new Text("По результатам форвард-оптимизации рекомендуются следующие интервалы:\n", setTxtBold)));
                 _totalActions.Add(() => _totalPDF.AddText(new Text(forvardResult, setTxt)));
-             }
-             _totalActions.Add(() => _totalPDF.AddNewPage());
+            }
+            _totalActions.Add(() => _totalPDF.AddNewPage());
         }
         /// <summary>
         /// Экспорт Excell 
