@@ -15,13 +15,14 @@ using System.Windows;
 using System.Xml.Linq;
 using System.Net;
 
-
 namespace EstimationStatNorm
 {
     public class EstimationStatNorm : StatisticScript
     {
         StatContainer? _stat = null;
-        StatContainer? _statInSample = null;
+        public ClientReport? _totalPDF = null;
+        public List<Action>? _totalActions = null;
+
         public DateTime? _startDate = null; // Начало периода оптимизации
         public DateTime? _endDate = null; // Окончание периода оптимизации
         public double _capital = 0; // Начальный капитал
@@ -34,8 +35,10 @@ namespace EstimationStatNorm
         /// </summary>
         public override void StartOptimization()
         {
-            _stat = new StatContainer( this );
-            _statInSample = new StatContainer( this );
+            _totalPDF = new ClientReport();
+            _totalPDF.SetExport(new Pdf(PathSaveResult, "Total", false));
+            _totalActions = new List<Action>();
+            _stat = new StatContainer(this);
         }
         /// <summary>
         ///  Расчет оценки Форвард интервалов
@@ -134,34 +137,25 @@ namespace EstimationStatNorm
                     up.value = oParams[i].Value;
                     est.userParam.Add(up);
                 }
-
-                if (_inSampleTest)
-                    _statInSample.AddStat(est);
-                else
-                    _stat.AddStat( est );
+                _stat.AddStat( est );
             }
         }
-
         /// <summary>
         ///  Окончание цикла оптимизации
         /// </summary>
         public override void EndOptimizationCycle()
         {
-            if (_inSampleTest)
-            {
-                _statInSample.BuildReport();
-                _inSampleTest = false;
-            }
-            else
-                _stat.BuildReport();
+            _stat.BuildReport();
+            _inSampleTest = false;
             // Активируем повторный тест для in sample 
-            if ( _inSamplePeriod > 0 )
+            /*if ( _inSamplePeriod > 0 )
             {
                 PeriodRestartOptimization = _inSamplePeriod;
                 IsRestartOptimizationWithNewData = true;
                 _inSampleTest = true;
                 _inSamplePeriod = 0;
-            }
+            }*/
+            _stat = new StatContainer(this);
         }
         /// <summary>
         ///  Окончание процеса оптимизации
@@ -185,9 +179,9 @@ namespace EstimationStatNorm
 
         public override void GetAttributes()
         {
-            DesParamStratetgy.Version = "11";
+            DesParamStratetgy.Version = "14";
             DesParamStratetgy.DateRelease = "16.01.2023";
-            DesParamStratetgy.DateChange = "24.01.2023";
+            DesParamStratetgy.DateChange = "24.02.2023";
             DesParamStratetgy.Description = "";
             DesParamStratetgy.Change = "";
             DesParamStratetgy.NameStrategy = "EstimationStatNorm";
@@ -242,22 +236,15 @@ namespace EstimationStatNorm
         List<Action>? _totalActions = null;
         bool _addStrategyInfo = true;
         bool _addStrategyInfoTotal = true;
-        List<List<EstimationStat>> _statContainer;       
+        List<EstimationStat> _statContainer;       
         string[] _statNames = { "Profit", "DD", "Recovery", "Avg. Deal", "Deal Count" };
-        int _reportCount = 0;
 
         public StatContainer( EstimationStatNorm mdl )
         {
             _mdl = mdl; 
-            _statContainer = new List<List<EstimationStat>>();
-            _totalPDF = new ClientReport();
-            string nameTotal = "Total";
-            
-            if (_mdl._inSampleTest)
-                nameTotal += "(In Sample)";
-
-            _totalPDF.SetExport(new Pdf(_mdl.PathSaveResult, "total"));
-            _totalActions = new List<Action>();
+            _statContainer = new List<EstimationStat>();            
+            _totalPDF = _mdl._totalPDF;
+            _totalActions = _mdl._totalActions;
         }
         /// <summary>
         /// Окончание процесса оптимизации
@@ -267,47 +254,40 @@ namespace EstimationStatNorm
             _totalPDF.GenerateReport( _totalActions );
             _totalPDF.SaveDocument();
         }
-        /// <summary>
-        ///  Возвращаем список стат. по ключу
-        /// </summary>
-        List<EstimationStat> GetStatList(string symbol, string tfType, int tfPeriod)
-        {
-            if (_statContainer.Count == 0)
-                return null;
 
-            for (int i = 0; i < _statContainer.Count; i++)
-            {
-                if (_statContainer[i].Count > 0)
-                {
-                    EstimationStat stat = _statContainer[i][0];
-
-                    if (stat.symbol.Equals(symbol) && stat.tfType.Equals(tfType) && stat.tfPeriod == tfPeriod)
-                    {
-                        return _statContainer[i];
-                    }
-                }
-            }
-            return null;
-        }
         /// <summary>
         ///  Добавляем статистку по проходу
         /// </summary>
         public void AddStat(EstimationStat stat)
         {
-            List<EstimationStat> statList = GetStatList(stat.symbol, stat.tfType, stat.tfPeriod);
-
-            if (statList == null)
+            _statContainer.Add(stat);
+        }
+        /// <summary>
+        /// Оценка результата по максимальной интегрированной оценке 
+        /// </summary>
+        EstimationStat? ResultEstimationMax( List<EstimationStat> statList )
+        {
+            if (statList.Count <= 0)
+                return null;
+            
+            EstimationStat? result = null;
+            double maxEstimate = double.MinValue;
+            
+            foreach (EstimationStat stat in statList)
             {
-                statList = new List<EstimationStat>();
-                _statContainer.Add(statList);
+                if (stat.normTotal > maxEstimate)
+                {
+                    maxEstimate = stat.normTotal;
+                    result = stat;
+                }
             }
-            statList.Add(stat);
+            return result;
         }
 
-        /// <summary>
-        /// Оценка результата
-        /// </summary>
-        EstimationStat ResultEstimation( List<EstimationStat> statList, int rang,  double kLimit )
+       /// <summary>
+       /// Оценка результата по кластеру распределения 
+       /// </summary>
+       EstimationStat ResultEstimationByClaster( List<EstimationStat> statList, int rang,  double kLimit )
         {
             if (statList.Count < (rang * 2 + 1))
                 return null;
@@ -379,79 +359,68 @@ namespace EstimationStatNorm
         /// </summary>
         void CaclNormStat()
         {
-            for (int k = 0; k < _statContainer.Count; k++)
+            List<EstimationStat> estStat = _statContainer;
+
+            if (estStat.Count == 0)
+                return;
+
+            double profMin = estStat.Min(a => a.profit);
+            double ddMin = estStat.Min(a => a.drawDown);
+            double recMin = estStat.Min(a => a.recoveryFactor);
+            double avrMin = estStat.Min(a => a.averageDeal);
+
+            double profMax = estStat.Max(a => a.profit);
+            double ddMax = estStat.Max(a => a.drawDown);
+            double recMax = estStat.Max(a => a.recoveryFactor);
+            double avrMax = estStat.Max(a => a.averageDeal);
+
+            for (int i = 0; i < estStat.Count; i++)
             {
-                List<EstimationStat> estStat = _statContainer[k];
-
-                if (estStat.Count == 0)
-                    continue;
-
-                double profMin = estStat.Min(a => a.profit);
-                double ddMin = estStat.Min(a => a.drawDown);
-                double recMin = estStat.Min(a => a.recoveryFactor);
-                double avrMin = estStat.Min(a => a.averageDeal);
-
-                double profMax = estStat.Max(a => a.profit);
-                double ddMax = estStat.Max(a => a.drawDown);
-                double recMax = estStat.Max(a => a.recoveryFactor);
-                double avrMax = estStat.Max(a => a.averageDeal);
-
-                for (int i = 0; i < estStat.Count; i++)
-                {
-                    estStat[i].total = CalcNorm(estStat[i].profit, profMin, profMax) -
-                                       CalcNorm(estStat[i].drawDown, ddMin, ddMax) +
+                estStat[i].total = CalcNorm(estStat[i].profit, profMin, profMax) -
+                                   CalcNorm(estStat[i].drawDown, ddMin, ddMax) +
                                        CalcNorm(estStat[i].recoveryFactor, recMin, recMax) +
                                        CalcNorm(estStat[i].averageDeal, avrMin, avrMax);
-                }
-
-                double totalMin = estStat.Min(a => a.total);
-                double totalMax = estStat.Max(a => a.total);
-
-                for (int i = 0; i < estStat.Count; i++)
-                    estStat[i].normTotal = CalcNorm(estStat[i].total, totalMin, totalMax);
             }
+
+            double totalMin = estStat.Min(a => a.total);
+            double totalMax = estStat.Max(a => a.total);
+
+            for (int i = 0; i < estStat.Count; i++)
+                estStat[i].normTotal = CalcNorm(estStat[i].total, totalMin, totalMax);
         }
         /// <summary>
         /// Рсчет нормализованного стат. фактора 
         /// </summary>
         void CaclNormParams()
         {
-            for (int l = 0; l < _statContainer.Count; l++)
+            List<EstimationStat> estStat = _statContainer;
+
+            if (estStat.Count == 0)
+                return;
+
+            List<double> min = new List<double>();
+            List<double> max = new List<double>();
+
+            for (int i = 0; i < estStat[0].userParam.Count; i++)
             {
-                List<EstimationStat> estStat = _statContainer[l];
-
-                if (estStat.Count == 0)
-                    continue;
-
-                List<double> min = new List<double>();
-                List<double> max = new List<double>();
-
-                for (int i = 0; i < estStat[0].userParam.Count; i++)
-                {
-                    min.Add(estStat.Min(a => a.userParam[i].value));
-                    max.Add(estStat.Max(a => a.userParam[i].value));
-                }
-
-                for (int i = 0; i < estStat.Count; i++)
-                {
-                    estStat[i].paramTotal = 0;
-                    //--- debug
-                    if(estStat[i].userParam.Count != 2 )
-                    {
-                        int dbg = 0;
-                    }
-                    //---
-                    for (int k = 0; k < estStat[i].userParam.Count; k++)
-                    {
-                        estStat[i].paramTotal += CalcNorm(estStat[i].userParam[k].value, min[k], max[k]);
-                    }
-                }
-                double totalMin = estStat.Min(a => a.paramTotal);
-                double totalMax = estStat.Max(a => a.paramTotal);
-
-                for (int i = 0; i < estStat.Count; i++)
-                    estStat[i].paramNorm = CalcNorm(estStat[i].paramTotal, totalMin, totalMax);
+                min.Add(estStat.Min(a => a.userParam[i].value));
+                max.Add(estStat.Max(a => a.userParam[i].value));
             }
+
+            for (int i = 0; i < estStat.Count; i++)
+            {
+                estStat[i].paramTotal = 0;
+
+                for (int k = 0; k < estStat[i].userParam.Count; k++)
+                {
+                     estStat[i].paramTotal += CalcNorm(estStat[i].userParam[k].value, min[k], max[k]);
+                }
+            }
+            double totalMin = estStat.Min(a => a.paramTotal);
+            double totalMax = estStat.Max(a => a.paramTotal);
+
+            for (int i = 0; i < estStat.Count; i++)
+                estStat[i].paramNorm = CalcNorm(estStat[i].paramTotal, totalMin, totalMax);
         }
         /// <summary>
         /// Результирующий отчет
@@ -462,23 +431,20 @@ namespace EstimationStatNorm
             CaclNormStat();
             CaclNormParams();
 
-            for (int i = 0; i < _statContainer.Count; i++)
-            {
-                if (i < _reportCount)
-                    continue;
-
-                EstimationStat result = ResultEstimation(_statContainer[i], 4, 0.5);
-                string fName = _statContainer[i][0].symbol + "_";
-                fName += _statContainer[i][0].tfType + "_";
-                fName += _statContainer[i][0].tfPeriod;
+            EstimationStat? result = ResultEstimationByClaster(_statContainer, 4, 0.5);
                 
-                if (_mdl._inSampleTest)
-                    fName += "(In Sample)";
+            if( result == null && _mdl._inSampleTest)
+                result = ResultEstimationMax(_statContainer);
+
+            string fName = _statContainer[0].symbol + "_";
+            fName += _statContainer[0].tfType + "_";
+            fName += _statContainer[0].tfPeriod;
+                
+            if (_mdl._inSampleTest)
+                fName += "(In Sample)";
           
-                ExportReportExcell(_statContainer[i], path, fName);
-                ExportReportPDF( _statContainer[i], result, path, fName );
-                _reportCount++;
-            }
+            ExportReportExcell(_statContainer, path, fName);
+            ExportReportPDF( _statContainer, result, path, fName );
         }
         /// <summary>
         /// Поиск максимальной оценки форвард 
@@ -546,7 +512,10 @@ namespace EstimationStatNorm
                 symbTF += " ( In Sample )";
             symbTF += "\n";
 
-            string noResult = "По текущему инcтрументу на данном временном периоде система не имеет устойчивых показателей.";          
+            string noResult = "По текущему инcтрументу на данном временном периоде система не имеет устойчивых показателей.";
+            string noClaster = "На данном In sample участке не удалось провести кластерный анализ устойчивости результатов. ";
+            noClaster += " Возможно, это связано с недостаточным количеством данных. ";
+            noClaster += " Параметры рекомендованы на основе выбора наилучшей интегрированной оценки. \n";
             ClientReport rep = new ClientReport();
             rep.SetExport(new Pdf(path, fName, false));
 
@@ -577,14 +546,14 @@ namespace EstimationStatNorm
                 }
                 _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
                 _totalActions.Add(() => _totalPDF.AddText(new Text(noResult, setTxt)));
+                _totalActions.Add(() => _totalPDF.AddNewPage());
                 return;
-            }
-            
+            }           
             // Сортируем данные и готвим объекты для отчета
             List<EstimationStat> sort = estStat.OrderBy(x => x.paramNorm).ToList();
             string chartName = "Диаграмма плотности распределения оценки результатов оптимизации\n";
-            string chartDesc = "Данная диаграмма показывает зависимость интегрированного показателя статистической оценки " +
-                " относительно совокупного фактора парамеров оптимизации. Значения по горизонтальной оси - это индекс прохода в результирующей таблице которая представлена" +
+            string chartDesc = "Диаграмма показывает зависимость интегрированного показателя статистической оценки " +
+                " относительно совокупного фактора параметров оптимизации. Значения по горизонтальной оси - это индекс прохода в результирующей таблице, которая представлена" +
                 " в " + fName + ".xlsx" + " файле. Данные в таблице упорядочены по фактору параметров.\n";
             string strResult = "По итогам оптимизации рекомендованы к использованию следующие параметры:\n";
             
@@ -644,7 +613,7 @@ namespace EstimationStatNorm
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
-                "Комисиия на сделку ( % )",
+                "Комиссия на сделку ( % )",
                 result.commission,
             });
             tableMdlStat.TableData.Add(new List<object>()
@@ -661,7 +630,9 @@ namespace EstimationStatNorm
                 _mdl._inSamplePeriod = f._periodIs;
                 forvardResult += "In sample (" + f._typeIs + "): " + f._periodIs.ToString() + ";  ";
                 forvardResult += "Out of sample (" + f._typeOs +"): " + f._periodOs.ToString() + ";  ";
-                forvardResult += "Кэф. устойчивости: " + Math.Round(f._estimate, 2 ).ToString();
+                forvardResult += "Коэф. устойчивости: " + Math.Round(f._estimate, 2).ToString() + "\n\n";
+                forvardResult += "Out of sample - рекомендуемый торговый период, на котором параметры сохраняют свою актуальность.\n";
+                forvardResult += "In sample - рекомендуемый минимальный размер обучающей выборки для переоптимизации системы по истечении торгового периода.";
             }
             // Заполняем данные для диаграммы
             List<double> chartData = new List<double>();
@@ -687,21 +658,29 @@ namespace EstimationStatNorm
             act.Add(() => rep.AddText(new Text(testPeriod, setTxt)));
             act.Add(() => rep.AddText(new Text(startCapital, setTxt)));
             act.Add(() => rep.AddText(new Text(symbTF, setTxtBold)));
-            act.Add(() => rep.AddText(new Text(chartName, setTxtCenter)));
-            act.Add(() => rep.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
-            act.Add(() => rep.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
+            
+            if (result.targetIdx > 0)
             {
-                LinkText = fName + ".xlsx",
-                TargetLink = path + "\\" + fName + ".xlsx"
-            })));
-            act.Add(() => rep.AddText(new Text(strResult, setTxt)));
+                act.Add(() => rep.AddText(new Text(chartName, setTxtCenter)));
+                act.Add(() => rep.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
+                act.Add(() => rep.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
+                {
+                    LinkText = fName + ".xlsx",
+                    TargetLink = path + "\\" + fName + ".xlsx"
+                })));
+                act.Add(() => rep.AddText(new Text(strResult, setTxt)));
+            }
+            else
+            {
+                act.Add(() => rep.AddText(new Text( noClaster, setTxtJustify)));
+            }
             act.Add(() => rep.AddTable(tableMdl));
-            act.Add(() => rep.AddText(new Text("Показатели статистики соответствущие рекомендованным параметрам.\n", setTxtBold)));
+            act.Add(() => rep.AddText(new Text("Показатели статистики, соответствущие рекомендованным параметрам.\n", setTxtBold)));
             act.Add(() => rep.AddTable(tableMdlStat));
 
             if (_mdl._forvard )
             {
-                act.Add(() => rep.AddText(new Text("По результатам форвард оптимизации рекоммендуются следующие интервалы:\n", setTxtBold)));
+                act.Add(() => rep.AddText(new Text("По результатам форвард-оптимизации рекомендуются следующие интервалы:\n", setTxtBold)));
                 act.Add(() => rep.AddText(new Text(forvardResult, setTxt)));
             }
             rep.GenerateReport(act);
@@ -719,21 +698,29 @@ namespace EstimationStatNorm
                  _addStrategyInfoTotal = false;
              }
              _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
-             _totalActions.Add(() => _totalPDF.AddText(new Text(chartName, setTxtCenter)));
-             _totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
-             _totalActions.Add(() => _totalPDF.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
-             {
-                LinkText = fName + ".xlsx",
-                TargetLink = path + "\\" + fName + ".xlsx"
-             })));
-             _totalActions.Add(() => _totalPDF.AddText(new Text(strResult, setTxt)));
-             _totalActions.Add(() => _totalPDF.AddTable(tableMdl));
-             _totalActions.Add(() => _totalPDF.AddText(new Text("Показатели статистики соответствущие рекомендованным параметрам.\n", setTxtBold)));
+
+            if (result.targetIdx > 0)
+            {
+                _totalActions.Add(() => _totalPDF.AddText(new Text(chartName, setTxtCenter)));
+                _totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
+                {
+                    LinkText = fName + ".xlsx",
+                    TargetLink = path + "\\" + fName + ".xlsx"
+                })));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(strResult, setTxt)));
+            }
+            else
+            {
+                _totalActions.Add(() => _totalPDF.AddText(new Text(noClaster, setTxtJustify)));
+            }
+            _totalActions.Add(() => _totalPDF.AddTable(tableMdl));
+             _totalActions.Add(() => _totalPDF.AddText(new Text("Показатели статистики, соответствущие рекомендованным параметрам.\n", setTxtBold)));
              _totalActions.Add(() => _totalPDF.AddTable(tableMdlStat));
 
-             if (!_mdl._inSampleTest)
+             if (_mdl._forvard)
              {
-                _totalActions.Add(() => _totalPDF.AddText(new Text("По результатам форвард оптимизации рекоммендуются следующие интервалы:\n", setTxtBold)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text("По результатам форвард-оптимизации рекомендуются следующие интервалы:\n", setTxtBold)));
                 _totalActions.Add(() => _totalPDF.AddText(new Text(forvardResult, setTxt)));
              }
              _totalActions.Add(() => _totalPDF.AddNewPage());
@@ -853,7 +840,7 @@ namespace EstimationStatNorm
 
                 if (result != null)
                 {
-                    str = "По итогам оптимизации, рекомендованы к использованию следующие параметры:";
+                    str = "По итогам оптимизации рекомендованы к использованию следующие параметры:";
                     sw.WriteLine(str);
 
                     for (int i = 0; i < result.userParam.Count; i++)
@@ -864,7 +851,7 @@ namespace EstimationStatNorm
                 }
                 else
                 {
-                    str = "Система не устойчива на всем диапазоне оптимизируемых параметров.";
+                    str = "Система неустойчива на всем диапазоне оптимизируемых параметров.";
                     sw.WriteLine(str);
                 }
                 sw.WriteLine(" ");
