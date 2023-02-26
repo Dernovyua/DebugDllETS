@@ -423,6 +423,9 @@ namespace EstimationStatNorm
         /// </summary>
         public void BuildReport()
         {
+            if (_statContainer.Count == 0)
+                return;
+
             string path = _mdl.PathSaveResult;
             path += "\\" + _mdl.ParamOptimStrategy.NameStrategy + "\\";
             
