@@ -41,7 +41,7 @@ namespace EstimationStatNorm
                 Directory.CreateDirectory(path);
 
             _totalPDF = new ClientReport();
-            _totalPDF.SetExport(new Pdf(path, "Total", false));
+            _totalPDF.SetExport(new Pdf(path, "Total", true ));
             _totalActions = new List<Action>();
             _stat = new StatContainer(this);
         }
@@ -49,7 +49,7 @@ namespace EstimationStatNorm
         ///  Расчет оценки Форвард интервалов
         /// </summary>
         List<Forvard> CalcForvardEstimate()
-        {
+        {          
             List<Forvard> result = new List<Forvard>();
             
             foreach (ForvardReportModel frModel in ForvardReports)
@@ -90,7 +90,10 @@ namespace EstimationStatNorm
         ///  Окончание каждого прохода оптимизации
         /// </summary>
         public override void SetUserStatisticParamOnEndTest( ReportEndOptimForStatistic report )
-        {   
+        {
+            if (_stat == null)
+                return;
+
             var oParams = OptimParams;
             var uStat = UserStatistics;
             Statistic stat = report.Statistic;
@@ -175,7 +178,7 @@ namespace EstimationStatNorm
 
         public override void GetAttributes()
         {
-            DesParamStratetgy.Version = "15";
+            DesParamStratetgy.Version = "18";
             DesParamStratetgy.DateRelease = "16.01.2023";
             DesParamStratetgy.DateChange = "24.02.2023";
             DesParamStratetgy.Description = "";
@@ -466,6 +469,13 @@ namespace EstimationStatNorm
             return  res;
         }
         /// <summary>
+        /// возвращает имя символа без расширения
+        /// </summary>
+        /*string SymbolName( string fullName )
+        {
+
+        }*/
+        /// <summary>
         /// Экспорт PDF через Export.dll
         /// </summary>
         void ExportReportPDF( List<EstimationStat> estStat, EstimationStat result, string path, string fName )
@@ -501,7 +511,7 @@ namespace EstimationStatNorm
             string dateModify = "Дата последней модификации: " + _mdl.ParamOptimStrategy.DateChange + "\n";
             string testPeriod = "Период тестирования: " + _mdl._startDate.ToString() + " - " + _mdl._endDate.ToString();
             string startCapital = "Стартовый капитал: " + _mdl._capital + "\n";
-            string symbTF = estStat[0].symbol + "\t" + estStat[0].tfType + " " + estStat[0].tfPeriod.ToString();
+            string symbTF = estStat[0].symbol + " " + estStat[0].tfType + " " + estStat[0].tfPeriod.ToString();
             string noResult = "По текущему инcтрументу на данном временном периоде система не имеет устойчивых показателей.";
             ClientReport rep = new ClientReport();
             rep.SetExport(new Pdf(path, fName, false));
@@ -525,13 +535,13 @@ namespace EstimationStatNorm
                 if (_addStrategyInfo)
                 {
                     _totalActions.Add(() => _totalPDF.AddText(new Text(strategyName, setTxt)));
-                    _totalActions.Add(() => _totalPDF.AddText(new Text(Version, setTxt)));
+                    _totalActions.Add(() => _totalPDF.AddText(new Text(Version, setTxt )));
                     _totalActions.Add(() => _totalPDF.AddText(new Text(Author, setTxt)));
                     _totalActions.Add(() => _totalPDF.AddText(new Text(dateModify, setTxt)));
                     _totalActions.Add(() => _totalPDF.AddText(new Text("\n")));
                     _addStrategyInfo = false;
                 }
-                _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold, true, 1 )));
                 _totalActions.Add(() => _totalPDF.AddText(new Text(noResult, setTxt)));
                 _totalActions.Add(() => _totalPDF.AddNewPage());
                 return;
@@ -548,7 +558,7 @@ namespace EstimationStatNorm
             HeaderTable htbl = new HeaderTable();
             htbl.Headers = new List<string>{ "Наименование", "Значение"};
             TableSetting tableSet = new TableSetting();
-            tableSet.SettingText.TextAligment = Export.Enums.Aligment.Center;
+            tableSet.BodySetting.SettingText.TextAligment = Export.Enums.Aligment.Center;
             TableModel tableMdl = new TableModel( htbl, tableSet, new List<List<object>>());
 
             for (int i = 0; i < result.userParam.Count; i++)
@@ -563,7 +573,7 @@ namespace EstimationStatNorm
             HeaderTable hTblStat = new HeaderTable();
             hTblStat.Headers = new List<string> { "", "" };
             TableSetting tableSetStat = new TableSetting();
-            tableSetStat.SettingText.TextAligment = Export.Enums.Aligment.Left;
+            tableSetStat.BodySetting.SettingText.TextAligment = Export.Enums.Aligment.Left;
             tableSetStat.TableBorderSetting = new TableBorderSetting() { BorderLineStyle = SettingBorderLineStyle.None };
             tableSetStat.TableBorderInsideSetting = new TableBorderInsideSetting() { BorderLineStyle = SettingBorderLineStyle.None };
             TableModel tableMdlStat = new TableModel(hTblStat, tableSetStat, new List<List<object>>());
@@ -635,8 +645,16 @@ namespace EstimationStatNorm
                 markerStart = result.targetIdx - 3;
                 markerCount = 7; 
             }
+            //Настройки диаграммы
+            SettingChart setChart = new SettingChart();
+            setChart.MarkerSetting.MarkerStart = markerStart;
+            setChart.MarkerSetting.MarkerCount = markerCount;
+            setChart.SignatureX = "Индекс прохода в текущем цикле";
+            setChart.SignatureY = "Интегрированная оценка результата";
+            setChart.SettingText.FontSize = 6;
+
             // создание отчета
-            List<Action> act = new List<Action>();
+            List < Action> act = new List<Action>();
             act.Add(() => rep.AddText(new Text(strategyName, setTxtBold)));
             act.Add(() => rep.AddText(new Text(Version, setTxt)));
             act.Add(() => rep.AddText(new Text(Author, setTxt)));
@@ -645,8 +663,9 @@ namespace EstimationStatNorm
             act.Add(() => rep.AddText(new Text(startCapital, setTxt)));
             act.Add(() => rep.AddText(new Text(symbTF, setTxtBold)));
             act.Add(() => rep.AddText(new Text(chartName, setTxtCenter)));
-            act.Add(() => rep.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
-            act.Add(() => rep.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
+            act.Add(() => rep.AddChart(new Chart(new Histogram(chartData, setChart))));
+            //act.Add(() => rep.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
+            act.Add(() => rep.AddText(new Text(chartDesc, setTxtJustify, false, 1, new HyperLink()
             {
                 LinkText = fName + ".xlsx",
                 TargetLink = path + "\\" + fName + ".xlsx"
@@ -675,10 +694,11 @@ namespace EstimationStatNorm
                 _totalActions.Add(() => _totalPDF.AddText(new Text(startCapital, setTxt)));
                 _addStrategyInfoTotal = false;
             }
-            _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold)));
+            _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold, true, 1)));
             _totalActions.Add(() => _totalPDF.AddText(new Text(chartName, setTxtCenter)));
-            _totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
-            _totalActions.Add(() => _totalPDF.AddText(new Text(chartDesc, setTxtJustify, false, new HyperLink()
+            _totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, setChart))));
+            //_totalActions.Add(() => _totalPDF.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
+            _totalActions.Add(() => _totalPDF.AddText(new Text(chartDesc, setTxtJustify, false, 1, new HyperLink()
             {
                 LinkText = fName + ".xlsx",
                 TargetLink = path + "\\" + fName + ".xlsx"
@@ -724,7 +744,7 @@ namespace EstimationStatNorm
             // Сортируем данные и готвим объекты для отчета
             List<EstimationStat> sort = estStat.OrderBy(x => x.paramNorm).ToList();
             TableSetting tableSetStat = new TableSetting();
-            tableSetStat.SettingText.TextAligment = Export.Enums.Aligment.Center;
+            tableSetStat.BodySetting.SettingText.TextAligment = Export.Enums.Aligment.Center;
             tableSetStat.TableBorderSetting = new TableBorderSetting() { BorderLineStyle = SettingBorderLineStyle.None };
             tableSetStat.TableBorderInsideSetting = new TableBorderInsideSetting() { BorderLineStyle = SettingBorderLineStyle.None };
             TableModel tableMdl = new TableModel(htbl, tableSetStat, new List<List<object>>());
