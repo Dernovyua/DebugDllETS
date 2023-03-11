@@ -15,6 +15,9 @@ using System.Windows;
 using System.Xml.Linq;
 using System.Net;
 using Export.Enums;
+using Export.DrawingCharts;
+using System.Drawing;
+using Point = Export.DrawingCharts.Point;
 
 namespace EstimationStatNorm
 {
@@ -23,9 +26,8 @@ namespace EstimationStatNorm
         StatContainer? _stat = null;
         public ClientReport? _totalPDF = null;
         public List<Action>? _totalActions = null;
-
-        public DateTime? _startDate = null; // Начало периода оптимизации
-        public DateTime? _endDate = null; // Окончание периода оптимизации
+        public DateTime _startDate = DateTime.Now; // Начало периода оптимизации
+        public DateTime _endDate = DateTime.Now; // Окончание периода оптимизации
         public double _capital = 0; // Начальный капитал
         public bool _forvard = false;
 
@@ -118,6 +120,7 @@ namespace EstimationStatNorm
                 else
                     _forvard = false;
 
+                est.equity = stat.EquityPoint;
                 est.profit = stat.NetProfitLossPercent;
                 est.averageDeal = stat.AvaregeProfitLossPercent;
                 est.recoveryFactor = stat.FactorRecovery;
@@ -178,7 +181,7 @@ namespace EstimationStatNorm
 
         public override void GetAttributes()
         {
-            DesParamStratetgy.Version = "18";
+            DesParamStratetgy.Version = "20";
             DesParamStratetgy.DateRelease = "16.01.2023";
             DesParamStratetgy.DateChange = "24.02.2023";
             DesParamStratetgy.Description = "";
@@ -186,7 +189,6 @@ namespace EstimationStatNorm
             DesParamStratetgy.NameStrategy = "EstimationStatNorm";
         }
     }
-
     /// <summary>
     ///  СТАТИСТИКА
     /// </summary>
@@ -215,6 +217,7 @@ namespace EstimationStatNorm
         public double normTotal = 0; // Нормированный Общий критерий оценки
         public double paramTotal = 0; // Общий фактор по параметрам
         public double paramNorm = 0; // Нормированный критерий по параметроам
+        public List<double>? equity = null; // Набор точек эквити накопительным итогом
         public List<UserParam>? userParam = null;// Параметры оптимизации
         public int targetIdx = -1; // 
         public List<Forvard>? _forvard = null; // Результаты оцненок форвард для данного слоя
@@ -469,12 +472,72 @@ namespace EstimationStatNorm
             return  res;
         }
         /// <summary>
-        /// возвращает имя символа без расширения
+        /// Рисуем Equity
         /// </summary>
-        /*string SymbolName( string fullName )
+        void EquityLineChart(EstimationStat result, ClientReport rep, List<Action> actions )
         {
+            if (result == null || result.equity == null || result.equity.Count == 0 )
+                return; 
 
-        }*/
+            LineChartSet set = new LineChartSet();
+            List<LineChartData> data = new List<LineChartData>();
+            set.xText = "Период времени";
+            set.yText = "Доходность";
+            LineChartData equity = new LineChartData();
+            equity.width = 2;
+            equity.color = Color.Blue;
+            DateTime dt = _mdl._startDate;
+
+            for (int i = 0; i < result.equity.Count; i++)
+            {
+                Point p = new Point(i, result.equity[i]);
+                equity.points.Add(p);
+
+                if( result.tfType == "Day")
+                    set.date.Add(dt.AddDays(i));
+                else
+                    set.date.Add(dt.AddMinutes(i * result.tfPeriod));
+            }
+            data.Add(equity);
+            actions.Add(() => rep.AddChart(new Chart(new Line(new LineETS(set, data)))));
+        }
+        /// <summary>
+        /// Тест линейного графика
+        /// </summary>
+        void TestLineChart(ClientReport rep, List<Action> actions )
+        {
+            LineChartSet set = new LineChartSet();
+            List<LineChartData> data = new List<LineChartData>();
+            set.xText = "Период времени";
+            set.yText = "Доходность";
+            LineChartData sin1 = new LineChartData();
+            LineChartData sin2 = new LineChartData();
+            sin1.width = 2;
+            sin1.color = Color.Blue;
+            sin2.width = 2;
+            sin2.color = Color.Green;
+            DateTime dt = DateTime.Now;
+
+            int imax = 100; //число точек в периоде
+            int t = 2; //число периодов
+            int amp1 = 70; //амплитуда
+            int amp2 = 30; //амплитуда
+
+            for (int i = 0; i < imax * t; i++)
+            {
+                Point p = new Point(i, Math.Round(amp1 * Math.Sin(2 * Math.PI / imax * i)));
+                sin1.points.Add(p);
+                p = new Point(i, Math.Round(amp2 * Math.Sin(2 * Math.PI / imax * i)));
+                sin2.points.Add(p);
+                set.date.Add(dt.AddDays(i + 1));
+            }
+
+            data.Add(sin1);
+            data.Add(sin2);
+            actions.Add(() => rep.AddChart(new Chart( new Line(new LineETS(set, data)))));
+            //chart.Draw();
+        }
+
         /// <summary>
         /// Экспорт PDF через Export.dll
         /// </summary>
@@ -611,12 +674,12 @@ namespace EstimationStatNorm
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Комиссия на сделку ( % )",
-                result.commission,
+                Math.Round( result.commission, 4 ),
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Величина Проскальзывания",
-                result.slippage
+                Math.Round( result.slippage, 4 ),
             });
             // Данные по результатам форвард оптимизации
             Forvard f = ForvardByMaxEvaluation(estStat);
@@ -652,7 +715,7 @@ namespace EstimationStatNorm
             setChart.SignatureX = "Индекс прохода в текущем цикле";
             setChart.SignatureY = "Интегрированная оценка результата";
             setChart.SettingText.FontSize = 6;
-
+            
             // создание отчета
             List < Action> act = new List<Action>();
             act.Add(() => rep.AddText(new Text(strategyName, setTxtBold)));
@@ -674,6 +737,7 @@ namespace EstimationStatNorm
             act.Add(() => rep.AddTable(tableMdl));
             act.Add(() => rep.AddText(new Text("Показатели статистики, соответствущие рекомендованным параметрам.\n", setTxtBold)));
             act.Add(() => rep.AddTable(tableMdlStat));
+            EquityLineChart(result, rep, act);
 
             if (_mdl._forvard )
             {
