@@ -30,6 +30,9 @@ namespace EstimationStatNorm
         public DateTime _startDate = DateTime.Now; // Начало периода оптимизации
         public DateTime _endDate = DateTime.Now; // Окончание периода оптимизации
         public double _capital = 0; // Начальный капитал
+        public double _userSetCommis = 0; // Настройки комиссии на сделку
+        public double _userSetSlip = 0; // Настройки проскальзывания на сделку
+        public string _userPosSize = ""; // Размер позиции
         public bool _forvard = false;
 
         /// <summary>
@@ -103,6 +106,9 @@ namespace EstimationStatNorm
             _startDate = stat.StartTime;
             _endDate = stat.EndTime;
             _capital = stat.InitialCapital;
+            _userSetCommis = report.Comission;
+            _userSetSlip = report.Slippage;
+            _userPosSize = report.PosSize;
 
             if ( 
                 stat.NetProfitLossPercent >= uStat[0].Value  && 
@@ -155,11 +161,24 @@ namespace EstimationStatNorm
         /// <summary>
         ///  Окончание цикла оптимизации
         /// </summary>
-        public override void EndOptimizationCycle()
+        public override List<Dictionary<string, double>> EndOptimizationCycle()
         {
+            var uStat = UserStatistics;
+            List<Dictionary<string, double>> resToPortfolio = new List<Dictionary<string, double>>();
+            EstimationStat result = _stat.BuildReport();
 
-            _stat.BuildReport();
+            if ( uStat[4].ValueBool && result != null && result.userParam != null  )
+            {
+                Dictionary<string, double> parDict = new Dictionary<string, double>();
+
+                foreach ( UserParam p in result.userParam )
+                {
+                    parDict.Add( p.name, p.value );
+                }
+                resToPortfolio.Add( parDict );
+            }
             _stat = new StatContainer(this);
+            return resToPortfolio;
         }
         /// <summary>
         ///  Окончание процеса оптимизации
@@ -178,14 +197,15 @@ namespace EstimationStatNorm
             list.Add(new UserParamModel { Name = "Drawdown ( % ) <= ", Value = 50, Weight = 1, IsOptimization = false });
             list.Add(new UserParamModel { Name = "Recovery Factor >= ", Value = 1, Weight = 1, IsOptimization = false });
             list.Add(new UserParamModel { Name = "Deal profit ( % ) >= ", Value = 0.3, Weight = 1, IsOptimization = false });
+            list.Add(new UserParamModel { Name = "Добавить в портфель", ValueBool = false, IsBool = true, IsOptimization = false });
             return list;
         }
 
         public override void GetAttributes()
         {
-            DesParamStratetgy.Version = "20";
+            DesParamStratetgy.Version = "21";
             DesParamStratetgy.DateRelease = "16.01.2023";
-            DesParamStratetgy.DateChange = "24.02.2023";
+            DesParamStratetgy.DateChange = "14.03.2023";
             DesParamStratetgy.Description = "";
             DesParamStratetgy.Change = "";
             DesParamStratetgy.NameStrategy = "EstimationStatNorm";
@@ -429,10 +449,10 @@ namespace EstimationStatNorm
         /// <summary>
         /// Результирующий отчет
         /// </summary>
-        public void BuildReport()
+        public EstimationStat? BuildReport()
         {
             if (_statContainer.Count == 0)
-                return;
+                return null;
 
             string path = _mdl.PathSaveResult;
             path += "\\" + _mdl.ParamOptimStrategy.NameStrategy + "\\";
@@ -442,12 +462,13 @@ namespace EstimationStatNorm
 
             CaclNormStat();
             CaclNormParams();
-            EstimationStat? result = ResultEstimationByClaster(_statContainer, 4, 0.5);
+            EstimationStat? result = ResultEstimationByClaster(_statContainer, 4, 0.6);
             string fName = _statContainer[0].symbol + "_";
             fName += _statContainer[0].tfType + "_";
             fName += _statContainer[0].tfPeriod;
             ExportReportExcell(_statContainer, path, fName);
             ExportReportPDF( _statContainer, result, path, fName );
+            return result;
         }
         /// <summary>
         /// Поиск максимальной оценки форвард 
@@ -537,9 +558,7 @@ namespace EstimationStatNorm
             data.Add(sin1);
             data.Add(sin2);
             actions.Add(() => rep.AddChart(new Chart( new Line(new LineETS(set, data)))));
-            //chart.Draw();
         }
-
         /// <summary>
         /// Экспорт PDF через Export.dll
         /// </summary>
@@ -573,10 +592,11 @@ namespace EstimationStatNorm
             string strategyName = "Наименование стратегии: " + _mdl.ParamOptimStrategy.NameStrategy + "\n";
             string Version = "Версия: " + _mdl.ParamOptimStrategy.Version;
             string Author = "Автор: " + _mdl.ParamOptimStrategy.Author;
-            string dateModify = "Дата последней модификации: " + _mdl.ParamOptimStrategy.DateChange + "\n";
+            string dateModify = "Дата последней модификации: " + _mdl.ParamOptimStrategy.DateChange;
             string testPeriod = "Период тестирования: " + _mdl._startDate.ToString() + " - " + _mdl._endDate.ToString();
-            string startCapital = "Стартовый капитал: " + _mdl._capital + "\n";
-            string symbTF = estStat[0].symbol + " " + estStat[0].tfType + " " + estStat[0].tfPeriod.ToString();
+            string startCapital = "Стартовый капитал: " + _mdl._capital;
+            string posSize = "Размер позиции: " + _mdl._userPosSize + "\n";
+            string symbTF = estStat[0].symbol + " " + estStat[0].tfType + " " + estStat[0].tfPeriod.ToString() + "\n";
             string noResult = "По текущему инcтрументу на данном временном периоде система не имеет устойчивых показателей.";
             ClientReport rep = new ClientReport();
             rep.SetExport(new Pdf(path, fName, false));
@@ -675,14 +695,25 @@ namespace EstimationStatNorm
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
-                "Комиссия на сделку ( % )",
+                "комиссия на сделку ( % )",
+                Math.Round( _mdl._userSetCommis, 4 ),
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Проскальзывание на сделку ( пункты )",
+                Math.Round( _mdl._userSetSlip, 4 ),
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Общая комиссия ( валюта )",
                 Math.Round( result.commission, 4 ),
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
-                "Величина Проскальзывания",
+                "Общее проскальзывание ( валюта )",
                 Math.Round( result.slippage, 4 ),
             });
+
             // Данные по результатам форвард оптимизации
             Forvard f = ForvardByMaxEvaluation(estStat);
             string forvardResult = "";
@@ -726,10 +757,10 @@ namespace EstimationStatNorm
             act.Add(() => rep.AddText(new Text(dateModify, setTxt)));
             act.Add(() => rep.AddText(new Text(testPeriod, setTxt)));
             act.Add(() => rep.AddText(new Text(startCapital, setTxt)));
+            act.Add(() => rep.AddText(new Text(posSize, setTxt)));
             act.Add(() => rep.AddText(new Text(symbTF, setTxtBold)));
             act.Add(() => rep.AddText(new Text(chartName, setTxtCenter)));
             act.Add(() => rep.AddChart(new Chart(new Histogram(chartData, setChart))));
-            //act.Add(() => rep.AddChart(new Chart(new Histogram(chartData, markerStart, markerCount))));
             act.Add(() => rep.AddText(new Text(chartDesc, setTxtJustify, false, 1, new HyperLink()
             {
                 LinkText = fName + ".xlsx",
@@ -758,6 +789,7 @@ namespace EstimationStatNorm
                 _totalActions.Add(() => _totalPDF.AddText(new Text(dateModify, setTxt)));
                 _totalActions.Add(() => _totalPDF.AddText(new Text(testPeriod, setTxt)));
                 _totalActions.Add(() => _totalPDF.AddText(new Text(startCapital, setTxt)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(posSize, setTxt)));
                 _addStrategyInfoTotal = false;
             }
             _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxtBold, true, 1)));
@@ -773,6 +805,7 @@ namespace EstimationStatNorm
             _totalActions.Add(() => _totalPDF.AddTable(tableMdl));
             _totalActions.Add(() => _totalPDF.AddText(new Text("Показатели статистики, соответствущие рекомендованным параметрам.\n", setTxtBold)));
             _totalActions.Add(() => _totalPDF.AddTable(tableMdlStat));
+            EquityLineChart(result, _totalPDF, _totalActions);
 
             if (_mdl._forvard)
             {
