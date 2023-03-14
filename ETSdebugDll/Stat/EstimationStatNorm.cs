@@ -17,7 +17,8 @@ using System.Net;
 using Export.Enums;
 using Export.DrawingCharts;
 using System.Drawing;
-using Point = Export.DrawingCharts.Point;
+using static Export.DrawingCharts.LineETS;
+using Point = Export.DrawingCharts.LineETS.Point;
 
 namespace EstimationStatNorm
 {
@@ -156,6 +157,7 @@ namespace EstimationStatNorm
         /// </summary>
         public override void EndOptimizationCycle()
         {
+
             _stat.BuildReport();
             _stat = new StatContainer(this);
         }
