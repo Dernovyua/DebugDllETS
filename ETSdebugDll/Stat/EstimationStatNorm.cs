@@ -513,7 +513,7 @@ namespace EstimationStatNorm
 
             for (int i = 0; i < result.equity.Count; i++)
             {
-                Point p = new Point(i, result.equity[i]);
+                Point p = new Point(i, result.equity[i] - _mdl._capital );
                 equity.points.Add(p);
 
                 if( result.tfType == "Day")
