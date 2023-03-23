@@ -30,8 +30,9 @@ namespace ETSdebugDll.StatPortfel
     {
         public ClientReport? _totalPDF = null;
         public List<Action>? _totalActions = null;
-        List<int>? _exeption = null; // Номера роботов подлежащие удалению из портфеля
-
+        List<int> _exeption = new List<int>(); // Номера роботов подлежащие удалению из портфеля
+        double _entrySize = 10000;
+        
         #region Реальная торговля
 
         public ParamOptimization PausePortfelCalc = new ParamOptimization(60, 1, 10, 5, "Портфель , сек ", "Проверка закрытия позиции, проходит раз в указанное время");
@@ -104,72 +105,11 @@ namespace ETSdebugDll.StatPortfel
             actions.Add(() => rep.AddChart(new Chart(new Line(new LineETS(set, data)))));
         }
         /// <summary>
-        ///  Модель таблицы исключений
+        /// данные для таблицы стат. показателей
         /// </summary>
-        TableModel ExeptionTable(List<CorelationModel> corelations)
-        {
-            HeaderTable hTblStat = new HeaderTable();
-            hTblStat.Headers = new List<string> { " № Робота", "Коэф. корреляции по портфелю" };
-            TableSetting tableSetStat = new TableSetting();
-            tableSetStat.BodySetting.SettingText.TextAligment = Export.Enums.Aligment.Left;
-            tableSetStat.TableBorderSetting = new TableBorderSetting() { BorderLineStyle = SettingBorderLineStyle.None };
-            tableSetStat.TableBorderInsideSetting = new TableBorderInsideSetting() { BorderLineStyle = SettingBorderLineStyle.None };
-            TableModel tableMdlStat = new TableModel(hTblStat, tableSetStat, new List<List<object>>());
-
-            if (_exeption == null)
-                return tableMdlStat;
-
-            foreach (int r in _exeption)
-            {
-                double avgCor = CalcAveragePortfolioCorrelation( r, corelations );
-                tableMdlStat.TableData.Add(new List<object>()
-                {
-                    r, Math.Round(avgCor, 2)
-                });
-            }
-            return tableMdlStat;
-        }
-        /// <summary>
-        ///  Добавоение статистики в отчет по опр. роботу
-        /// </summary>
-        void AddToReport(PortfelResultTest res, List<CorelationModel> corelations )
+        TableModel StatisticTable(PortfelResultTest res)
         {
             Statistic stat = res.Statistic;
-
-            SettingText setTxt = new SettingText();
-            setTxt.FontSize = 12;
-            setTxt.FontName = "Arial";
-            setTxt.TextAligment = Export.Enums.Aligment.Left;
-
-            SettingText setTxtCenter = new SettingText();
-            setTxtCenter.FontSize = 12;
-            setTxtCenter.FontName = "Arial";
-            setTxtCenter.TextAligment = Export.Enums.Aligment.Center;
-
-            SettingText setTxtBold = new SettingText();
-            setTxtBold.FontSize = 12;
-            setTxtBold.FontName = "Arial";
-            setTxtBold.TextAligment = Export.Enums.Aligment.Left;
-            setTxtBold.Bold = true;
-
-            string nameStrategy = "Стратегия: " + res.NameStategy + "  № робота: " + res.NumberRobot;
-            string testPeriod = "Период тестирования: " + stat.StartTime.ToString() + " - ";
-            testPeriod += stat.EndTime.ToString();
-            string capital = "Стартовый капитал: " + stat.InitialCapital.ToString();
-            string posSize = "размер позиции: "; //+ res.PosSize.ToString();
-            string averageCor = "Коэф. корреляцици в среднем по портфелю: ";
-            double avgCor = CalcAveragePortfolioCorrelation(res.NumberRobot, corelations);
-
-            if( avgCor != double.NaN)
-            {
-                averageCor += Math.Round( avgCor, 2).ToString();
-                
-                if(Math.Round(avgCor, 2) > 0.5 )
-                    _exeption.Add(res.NumberRobot);
-            }
-            string symbTF = res.Symbol + " " + res.TimeFrameType + " " + res.TimeFramePeriod.ToString() + "\n";
-   
-            //данные для таблицы стат. показателей
             HeaderTable hTblStat = new HeaderTable();
             hTblStat.Headers = new List<string> { "", "" };
             TableSetting tableSetStat = new TableSetting();
@@ -233,7 +173,124 @@ namespace ETSdebugDll.StatPortfel
                 "Общее проскальзывание ( валюта )",
                 Math.Round( stat.TotalSlippage, 4 ),
             });
+            return tableMdlStat;
+        }
+        /// <summary>
+        ///  Модель таблицы исключений
+        /// </summary>
+        TableModel ExeptionTable(List<CorelationModel> corelations)
+        {
+            HeaderTable hTblStat = new HeaderTable();
+            hTblStat.Headers = new List<string> { " № Робота", "Коэф. корреляции по портфелю" };
+            TableSetting tableSetStat = new TableSetting();
+            tableSetStat.BodySetting.SettingText.TextAligment = Export.Enums.Aligment.Left;
+            tableSetStat.TableBorderSetting = new TableBorderSetting() { BorderLineStyle = SettingBorderLineStyle.None };
+            tableSetStat.TableBorderInsideSetting = new TableBorderInsideSetting() { BorderLineStyle = SettingBorderLineStyle.None };
+            TableModel tableMdlStat = new TableModel(hTblStat, tableSetStat, new List<List<object>>());
 
+            if (_exeption == null)
+                return tableMdlStat;
+
+            foreach (int r in _exeption)
+            {
+                double avgCor = CalcAveragePortfolioCorrelation( r, corelations );
+                tableMdlStat.TableData.Add(new List<object>()
+                {
+                    r, Math.Round(avgCor, 2)
+                });
+            }
+            return tableMdlStat;
+        }
+        /// <summary>
+        /// Рассчет весовых коэф. и формирование таблицы 
+        /// </summary>
+        TableModel WeightTable(List<PortfelResultTest> results)
+        {
+            List<int> robotNum = new List<int>();
+            List<double> volaty = new List<double>();
+            List<double> weight = new List<double>();
+            List<double> sample = new List<double>();
+
+            foreach (PortfelResultTest res in results)
+            {
+                if (_exeption.Contains(res.NumberRobot))
+                    continue;
+                robotNum.Add(res.NumberRobot);
+                Statistic stat = res.Statistic;
+                double eqMax = stat.EquityPoint.Max();
+                double eqMin = stat.EquityPoint.Min();
+                volaty.Add((eqMax - eqMin) * 100 / _entrySize );
+            }
+            double volatyMax = volaty.Max();
+
+            for ( int i=0; i < volaty.Count; i++)
+            {
+                weight.Add(1/(volaty[i] / volatyMax));
+            }
+            double normSum = weight.Sum();
+            
+            for (int i = 0; i < weight.Count; i++)
+            {
+                weight[i] /= normSum;
+                sample.Add(weight[i] * 100000);
+            }
+
+            HeaderTable hTblStat = new HeaderTable();
+            hTblStat.Headers = new List<string> { " № Робота", "волатильность (%)","Вес", "На 100 000" };
+            TableSetting tableSetStat = new TableSetting();
+            tableSetStat.BodySetting.SettingText.TextAligment = Export.Enums.Aligment.Center;
+            tableSetStat.TableBorderSetting = new TableBorderSetting() { BorderLineStyle = SettingBorderLineStyle.None };
+            tableSetStat.TableBorderInsideSetting = new TableBorderInsideSetting() { BorderLineStyle = SettingBorderLineStyle.None };
+            TableModel tableMdlStat = new TableModel(hTblStat, tableSetStat, new List<List<object>>());
+
+            for(int i=0; i<robotNum.Count; i++)
+            {
+                tableMdlStat.TableData.Add(new List<object>()
+                {
+                    robotNum[i], Math.Round( volaty[i], 2), Math.Round( weight[i], 2), Math.Round( sample[i], 2)
+                });
+            }
+            return tableMdlStat;
+        }
+        /// <summary>
+        ///  Добавоение статистики в отчет по опр. роботу
+        /// </summary>
+        void AddToReport(PortfelResultTest res, List<CorelationModel> corelations )
+        {
+            Statistic stat = res.Statistic;
+            SettingText setTxt = new SettingText();
+            setTxt.FontSize = 12;
+            setTxt.FontName = "Arial";
+            setTxt.TextAligment = Export.Enums.Aligment.Left;
+
+            SettingText setTxtCenter = new SettingText();
+            setTxtCenter.FontSize = 12;
+            setTxtCenter.FontName = "Arial";
+            setTxtCenter.TextAligment = Export.Enums.Aligment.Center;
+
+            SettingText setTxtBold = new SettingText();
+            setTxtBold.FontSize = 12;
+            setTxtBold.FontName = "Arial";
+            setTxtBold.TextAligment = Export.Enums.Aligment.Left;
+            setTxtBold.Bold = true;
+
+            string nameStrategy = "Стратегия: " + res.NameStategy + "  № робота: " + res.NumberRobot;
+            string testPeriod = "Период тестирования: " + stat.StartTime.ToString() + " - ";
+            testPeriod += stat.EndTime.ToString();
+            string capital = "Стартовый капитал: " + stat.InitialCapital.ToString();
+            string posSize = "размер позиции: "; //+ res.PosSize.ToString();
+            string averageCor = "Коэф. корреляцици в среднем по портфелю: ";
+            double avgCor = CalcAveragePortfolioCorrelation(res.NumberRobot, corelations);
+
+            if(_exeption != null && avgCor != double.NaN)
+            {
+                averageCor += Math.Round( avgCor, 2).ToString();
+                
+                if(Math.Round(avgCor, 2) > 0.5 )
+                    _exeption.Add(res.NumberRobot);
+            }
+            string symbTF = res.Symbol + " " + res.TimeFrameType + " " + res.TimeFramePeriod.ToString() + "\n";
+   
             _totalActions.Add(() => _totalPDF.AddText(new Text(nameStrategy, setTxt)));
             _totalActions.Add(() => _totalPDF.AddText(new Text(testPeriod, setTxt)));
             _totalActions.Add(() => _totalPDF.AddText(new Text(capital, setTxt)));
@@ -241,7 +298,7 @@ namespace ETSdebugDll.StatPortfel
             _totalActions.Add(() => _totalPDF.AddText(new Text(averageCor, setTxt)));
             _totalActions.Add(() => _totalPDF.AddText(new Text(symbTF, setTxt)));
             _totalActions.Add(() => _totalPDF.AddText(new Text("Показатели статистики\n", setTxtBold)));
-            _totalActions.Add(() => _totalPDF.AddTable(tableMdlStat));
+            _totalActions.Add(() => _totalPDF.AddTable(StatisticTable(res)));
             _totalActions.Add(() => _totalPDF.AddText(new Text("Доходность за период\n", setTxtBold)));
             EquityLineChart(res, _totalPDF, _totalActions);
             _totalActions.Add(() => _totalPDF.AddNewPage());
@@ -268,9 +325,10 @@ namespace ETSdebugDll.StatPortfel
             setTxtBold.FontName = "Arial";
             setTxtBold.TextAligment = Export.Enums.Aligment.Left;
             setTxtBold.Bold = true;
-
-            _totalActions.Add(() => _totalPDF.AddText(new Text("Рекомендуется удалить из портфеля элементы со следующими номерами:\n", setTxtBold)));
+            _totalActions.Add(() => _totalPDF.AddText(new Text("Рекомендуется удалить из портфеля элементы со следующими номерами.\n", setTxtBold)));
             _totalActions.Add(() => _totalPDF.AddTable(ExeptionTable(corelations)));
+            _totalActions.Add(() => _totalPDF.AddText(new Text("Распределение капитала в соответствии с весами.\n", setTxtBold)));
+            _totalActions.Add(() => _totalPDF.AddTable(WeightTable(results)));
             _totalPDF.GenerateReport(_totalActions);
             _totalPDF.SaveDocument();
             return new List<List<int>>();
