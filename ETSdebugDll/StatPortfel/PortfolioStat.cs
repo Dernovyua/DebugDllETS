@@ -28,11 +28,12 @@ namespace ETSdebugDll.StatPortfel
 {
     public class PortfolioStat : PortfelScript
     {
-        public ClientReport? _totalPDF = null;
-        public List<Action>? _totalActions = null;
+        public ClientReport _totalPDF = new ClientReport();
+        public List<Action> _totalActions = new List<Action>();
         List<int> _exeption = new List<int>(); // Номера роботов подлежащие удалению из портфеля
         double _entrySize = 10000;
-        
+        double _coreLimit = 0.5;
+
         #region Реальная торговля
 
         public ParamOptimization PausePortfelCalc = new ParamOptimization(60, 1, 10, 5, "Портфель , сек ", "Проверка закрытия позиции, проходит раз в указанное время");
@@ -96,12 +97,13 @@ namespace ETSdebugDll.StatPortfel
                 Point p = new Point( i, stat.EquityPoint[i] - stat.InitialCapital );
                 equity.points.Add(p);
 
-                if ( res.TimeFrameType == "День")
+                /*if ( res.TimeFrameType == "День")
                     set.date.Add(dt.AddDays(i));
                 else
-                    set.date.Add(dt.AddMinutes(i * res.TimeFramePeriod ));
+                    set.date.Add(dt.AddMinutes(i * res.TimeFramePeriod ));*/
             }
             data.Add(equity);
+            //actions.Add(() => rep.AddText(new Text("fgf")));
             actions.Add(() => rep.AddChart(new Chart(new Line(new LineETS(set, data)))));
         }
         /// <summary>
@@ -286,11 +288,11 @@ namespace ETSdebugDll.StatPortfel
             {
                 averageCor += Math.Round( avgCor, 2).ToString();
                 
-                if(Math.Round(avgCor, 2) > 0.5 )
+                if(Math.Round(avgCor, 2) > _coreLimit )
                     _exeption.Add(res.NumberRobot);
             }
             string symbTF = res.Symbol + " " + res.TimeFrameType + " " + res.TimeFramePeriod.ToString() + "\n";
-   
+
             _totalActions.Add(() => _totalPDF.AddText(new Text(nameStrategy, setTxt)));
             _totalActions.Add(() => _totalPDF.AddText(new Text(testPeriod, setTxt)));
             _totalActions.Add(() => _totalPDF.AddText(new Text(capital, setTxt)));
