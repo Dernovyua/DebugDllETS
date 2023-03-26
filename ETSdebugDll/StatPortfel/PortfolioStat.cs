@@ -82,6 +82,20 @@ namespace ETSdebugDll.StatPortfel
             if (res == null || res.Statistic.EquityPoint == null || res.Statistic.EquityPoint.Count == 0)
                 return;
 
+            bool allowTable = false;
+
+            for (int i = 0; i < res.Statistic.EquityPoint.Count; i++)
+            {
+                if( res.Statistic.EquityPoint[i] != 0 )
+                {
+                    allowTable = true;  
+                    break;
+                }
+            }
+
+            if (!allowTable)
+                return;
+
             Statistic stat = res.Statistic;
             LineChartSet set = new LineChartSet();
             List<LineChartData> data = new List<LineChartData>();
@@ -97,13 +111,12 @@ namespace ETSdebugDll.StatPortfel
                 Point p = new Point( i, stat.EquityPoint[i] - stat.InitialCapital );
                 equity.points.Add(p);
 
-                /*if ( res.TimeFrameType == "День")
+                if ( res.TimeFrameType == "День")
                     set.date.Add(dt.AddDays(i));
                 else
-                    set.date.Add(dt.AddMinutes(i * res.TimeFramePeriod ));*/
+                    set.date.Add(dt.AddMinutes(i * res.TimeFramePeriod ));
             }
             data.Add(equity);
-            //actions.Add(() => rep.AddText(new Text("fgf")));
             actions.Add(() => rep.AddChart(new Chart(new Line(new LineETS(set, data)))));
         }
         /// <summary>

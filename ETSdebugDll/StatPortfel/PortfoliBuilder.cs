@@ -165,7 +165,6 @@ namespace ETSdebugDll.PortfolioBuilder
             }
         }
 
-
         TableModel WeightTable(List<PortfelResultTest> results)
         {
             List<int> robotNum = new List<int>();
