@@ -31,7 +31,7 @@ namespace ETSdebugDll.PortfolioBuilder
         public ClientReport? _totalPDF = null;
         public List<Action>? _totalActions = null;
         double _entrySize = 10000;
-        int _pornfolioNumRobot = 5;
+        int _pornfolioNumRobot = 3;
         double _coreLimit = 0.5;
 
         List<List<PortfelResultTest>> _portfolioSet = new List<List<PortfelResultTest>>();
@@ -66,14 +66,31 @@ namespace ETSdebugDll.PortfolioBuilder
             
             while( _sourceCopy.Count > _pornfolioNumRobot )
                 BuildPortfolio(corelations);
-            
+
+            List<TableModel> tableMdl = new List<TableModel>();
+
+            foreach (List<PortfelResultTest> p in _portfolioSet)
+            {
+                tableMdl.Add(WeightTable(p));
+            }
             string path = PathSaveResult;
             string name = "\\PortfolioBuilder.pdf";
             _totalPDF = new ClientReport();
             _totalPDF.SetExport(new Pdf(path, name, false));
             _totalActions = new List<Action>();
+            SettingText setTxtBold = new SettingText();
+            setTxtBold.FontSize = 12;
+            setTxtBold.FontName = "Arial";
+            setTxtBold.TextAligment = Export.Enums.Aligment.Left;
+            setTxtBold.Bold = true;
 
+            int count = 0;
 
+            foreach (TableModel tbl in tableMdl)
+            {
+                _totalActions.Add(() => _totalPDF.AddText(new Text("Пртфель № " + (++count).ToString() + "\n", setTxtBold)));
+                _totalActions.Add(() => _totalPDF.AddTable(tbl));
+            }
             _totalPDF.GenerateReport(_totalActions);
             _totalPDF.SaveDocument();
             return new List<List<int>>();
@@ -81,32 +98,32 @@ namespace ETSdebugDll.PortfolioBuilder
         /// <summary>
         /// Проверяем условия присутствия элемента в указанном портфеле
         /// </summary>
-        bool CheckCorrelation( int robotNum, List<PortfelResultTest> portfolio, List<CorelationModel> corelations)
+        bool CheckCorrelation(int robotNum, List<PortfelResultTest> portfolio, List<CorelationModel> corelations)
         {
             CorelationModel? corMdl = null;
 
             // Находим моель корреляции для указанного робота
-            foreach(CorelationModel c in corelations)
+            foreach (CorelationModel c in corelations)
             {
-                if( c.NumberRobot == robotNum )
+                if (c.NumberRobot == robotNum)
                 {
                     corMdl = c;
                     break;
                 }
             }
 
-            if(corMdl == null)
+            if (corMdl == null)
                 return false;
-            
+
             double portfolioCore = 0;
             int findeCount = 0;
 
             // Смотрим как указанный робот коррелирует с существ. порфелем
-            foreach( PortfelResultTest p in portfolio )
+            foreach (PortfelResultTest p in portfolio)
             {
-                foreach( CorValueModel cv in corMdl.CorValues )
+                foreach (CorValueModel cv in corMdl.CorValues)
                 {
-                    if( p.NumberRobot == cv.NumberRobot )
+                    if (p.NumberRobot == cv.NumberRobot)
                     {
                         findeCount++;
                         portfolioCore += cv.Corelation;
@@ -127,12 +144,12 @@ namespace ETSdebugDll.PortfolioBuilder
         /// <summary>
         /// удаляем элемент из списка роботов
         /// </summary>
-        void DeleteFromSource( int robotNum )
+        void DeleteFromSource(int robotNum)
         {
             for (int i = 0; i < _sourceCopy.Count; i++)
             {
                 if (robotNum == _sourceCopy[i].NumberRobot)
-                { 
+                {
                     _sourceCopy.RemoveAt(i);
                     return;
                 }
@@ -151,7 +168,7 @@ namespace ETSdebugDll.PortfolioBuilder
                 {
                     portfolio.Add(res);
                 }
-                if( portfolio.Count >= _pornfolioNumRobot)
+                if (portfolio.Count >= _pornfolioNumRobot)
                     break;
             }
 
@@ -164,7 +181,9 @@ namespace ETSdebugDll.PortfolioBuilder
                 _portfolioSet.Add(portfolio);
             }
         }
-
+        /// <summary>
+        /// Формируем таблицу весов
+        /// </summary>
         TableModel WeightTable(List<PortfelResultTest> results)
         {
             List<int> robotNum = new List<int>();

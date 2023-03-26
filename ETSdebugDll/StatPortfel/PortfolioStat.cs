@@ -49,7 +49,36 @@ namespace ETSdebugDll.StatPortfel
         #endregion
 
         #region Тестирование портфелей
+        /// <summary>
+        ///  Событие по окончании теста
+        /// </summary>
+        public override List<List<int>> ExecuteEndOptimization(List<PortfelResultTest> results, List<CorelationModel> corelations)
+        {
+            // var userParams = UserParams; //пользовательски параметры для скрипта используются только для тестирования
+            string path = PathSaveResult;
+            string name = "\\PortfolioTest.pdf";
+            _totalPDF = new ClientReport();
+            _totalPDF.SetExport(new Pdf(path, name, false));
+            _totalActions = new List<Action>();
+            _exeption = new List<int>();
 
+            foreach (PortfelResultTest res in results)
+            {
+                AddToReport(res, corelations);
+            }
+            SettingText setTxtBold = new SettingText();
+            setTxtBold.FontSize = 12;
+            setTxtBold.FontName = "Arial";
+            setTxtBold.TextAligment = Export.Enums.Aligment.Left;
+            setTxtBold.Bold = true;
+            _totalActions.Add(() => _totalPDF.AddText(new Text("Рекомендуется удалить из портфеля элементы со следующими номерами.\n", setTxtBold)));
+            _totalActions.Add(() => _totalPDF.AddTable(ExeptionTable(corelations)));
+            _totalActions.Add(() => _totalPDF.AddText(new Text("Распределение капитала в соответствии с весами.\n", setTxtBold)));
+            _totalActions.Add(() => _totalPDF.AddTable(WeightTable(results)));
+            _totalPDF.GenerateReport(_totalActions);
+            _totalPDF.SaveDocument();
+            return new List<List<int>>();
+        }
         /// <summary>
         /// Считаем среднюю корреляцию по портфелю
         /// </summary>
@@ -86,7 +115,7 @@ namespace ETSdebugDll.StatPortfel
 
             for (int i = 0; i < res.Statistic.EquityPoint.Count; i++)
             {
-                if( res.Statistic.EquityPoint[i] != 0 )
+                if( res.Statistic.EquityPoint[i] != 0 && res.Statistic.EquityPoint[i] != double.NaN )
                 {
                     allowTable = true;  
                     break;
@@ -318,36 +347,7 @@ namespace ETSdebugDll.StatPortfel
             EquityLineChart(res, _totalPDF, _totalActions);
             _totalActions.Add(() => _totalPDF.AddNewPage());
         }
-        /// <summary>
-        ///  Событие по окончании теста
-        /// </summary>
-        public override List<List<int>> ExecuteEndOptimization(List<PortfelResultTest> results, List<CorelationModel> corelations)
-        {
-           // var userParams = UserParams; //пользовательски параметры для скрипта используются только для тестирования
-            string path = PathSaveResult;
-            string name = "\\PortfolioTest.pdf";
-            _totalPDF = new ClientReport();
-            _totalPDF.SetExport(new Pdf(path, name, false));
-            _totalActions = new List<Action>();
-            _exeption = new List<int>();
-
-            foreach (PortfelResultTest res in results )
-            {
-                AddToReport(res, corelations);    
-            }
-            SettingText setTxtBold = new SettingText();
-            setTxtBold.FontSize = 12;
-            setTxtBold.FontName = "Arial";
-            setTxtBold.TextAligment = Export.Enums.Aligment.Left;
-            setTxtBold.Bold = true;
-            _totalActions.Add(() => _totalPDF.AddText(new Text("Рекомендуется удалить из портфеля элементы со следующими номерами.\n", setTxtBold)));
-            _totalActions.Add(() => _totalPDF.AddTable(ExeptionTable(corelations)));
-            _totalActions.Add(() => _totalPDF.AddText(new Text("Распределение капитала в соответствии с весами.\n", setTxtBold)));
-            _totalActions.Add(() => _totalPDF.AddTable(WeightTable(results)));
-            _totalPDF.GenerateReport(_totalActions);
-            _totalPDF.SaveDocument();
-            return new List<List<int>>();
-        }
+        
         #endregion
 
         public override void GetAttributesPortfel()
