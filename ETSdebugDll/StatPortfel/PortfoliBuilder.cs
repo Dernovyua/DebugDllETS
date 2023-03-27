@@ -33,7 +33,7 @@ namespace ETSdebugDll.PortfolioBuilder
         double _entrySize = 10000;
         int _pornfolioNumRobot = 3;
         double _coreLimit = 0.5;
-
+        List<int> _noDeals = new List<int>();
         List<List<PortfelResultTest>> _portfolioSet = new List<List<PortfelResultTest>>();
         List<PortfelResultTest> _sourceCopy = new List<PortfelResultTest>();
 
@@ -60,11 +60,16 @@ namespace ETSdebugDll.PortfolioBuilder
         {
             _sourceCopy = new List<PortfelResultTest>();
             _portfolioSet = new List<List<PortfelResultTest>>();
+            _noDeals = new List<int>();
+            CheckForEquityPoints(results);
 
             foreach ( PortfelResultTest res in results)
                 _sourceCopy.Add(res);
-            
-            while( _sourceCopy.Count > _pornfolioNumRobot )
+
+            foreach (int n in _noDeals)
+                DeleteFromSource(n);
+
+            while ( _sourceCopy.Count >= _pornfolioNumRobot )
                 BuildPortfolio(corelations);
 
             List<TableModel> tableMdl = new List<TableModel>();
@@ -83,7 +88,6 @@ namespace ETSdebugDll.PortfolioBuilder
             setTxtBold.FontName = "Arial";
             setTxtBold.TextAligment = Export.Enums.Aligment.Left;
             setTxtBold.Bold = true;
-
             int count = 0;
 
             foreach (TableModel tbl in tableMdl)
@@ -91,9 +95,62 @@ namespace ETSdebugDll.PortfolioBuilder
                 _totalActions.Add(() => _totalPDF.AddText(new Text("Пртфель № " + (++count).ToString() + "\n", setTxtBold)));
                 _totalActions.Add(() => _totalPDF.AddTable(tbl));
             }
+
+            // Если есть пустые эквити
+            if (_noDeals.Count > 0)
+            {
+                string noDealsStr = "Элементы со следующими номерами ( ";
+
+                for (int i = 0; i < _noDeals.Count; i++)
+                {
+                    noDealsStr += _noDeals[i].ToString();
+
+                    if (i < _noDeals.Count - 1)
+                        noDealsStr += ", ";
+                }
+                noDealsStr += " ) не имеют сделок на всем периоде теста.\n";
+                _totalActions.Add(() => _totalPDF.AddText(new Text(noDealsStr, setTxtBold)));
+            }
+
+            // Если остались не распределенные элементы
+            if (_sourceCopy.Count > 0)
+            {
+                string noGroup = "Элементы со следующими номерами ( ";
+
+                for (int i = 0; i < _sourceCopy.Count; i++)
+                {
+                    noGroup += _sourceCopy[i].NumberRobot.ToString();
+
+                    if (i < _sourceCopy.Count - 1)
+                        noGroup += ", ";
+                }
+                noGroup += " ) не проходят по условиям группировки.\n";
+                _totalActions.Add(() => _totalPDF.AddText(new Text(noGroup, setTxtBold)));
+            }
             _totalPDF.GenerateReport(_totalActions);
             _totalPDF.SaveDocument();
             return new List<List<int>>();
+        }
+        /// <summary>
+        /// Проверяем массив эквити на отсутствие сделок 
+        /// </summary>
+        void CheckForEquityPoints( List<PortfelResultTest> results)
+        {
+            foreach (PortfelResultTest res in results)
+            {
+                bool deals = false;
+
+                for (int i = 0; i < res.Statistic.EquityPoint.Count; i++)
+                {
+                    if (res.Statistic.EquityPoint[i] != 0 && res.Statistic.EquityPoint[i] != double.NaN)
+                    {
+                        deals = true;
+                        break;
+                    }
+                }
+                if (!deals)
+                    _noDeals.Add(res.NumberRobot);
+            }
         }
         /// <summary>
         /// Проверяем условия присутствия элемента в указанном портфеле

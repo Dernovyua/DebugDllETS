@@ -31,6 +31,7 @@ namespace ETSdebugDll.StatPortfel
         public ClientReport _totalPDF = new ClientReport();
         public List<Action> _totalActions = new List<Action>();
         List<int> _exeption = new List<int>(); // Номера роботов подлежащие удалению из портфеля
+        List<int> _noDeals = new List<int>(); // Номера роботов не имеющих ни одной сделки на всем периоде
         double _entrySize = 10000;
         double _coreLimit = 0.5;
 
@@ -61,9 +62,15 @@ namespace ETSdebugDll.StatPortfel
             _totalPDF.SetExport(new Pdf(path, name, false));
             _totalActions = new List<Action>();
             _exeption = new List<int>();
+            _noDeals = new List<int>();
 
             foreach (PortfelResultTest res in results)
             {
+                if( !CheckForEquityPoints(res) )
+                {
+                    _noDeals.Add(res.NumberRobot);
+                    continue;
+                }
                 AddToReport(res, corelations);
             }
             SettingText setTxtBold = new SettingText();
@@ -71,8 +78,27 @@ namespace ETSdebugDll.StatPortfel
             setTxtBold.FontName = "Arial";
             setTxtBold.TextAligment = Export.Enums.Aligment.Left;
             setTxtBold.Bold = true;
-            _totalActions.Add(() => _totalPDF.AddText(new Text("Рекомендуется удалить из портфеля элементы со следующими номерами.\n", setTxtBold)));
-            _totalActions.Add(() => _totalPDF.AddTable(ExeptionTable(corelations)));
+            
+            if( _noDeals.Count > 0)
+            {
+                string noDealsStr = "Элементы со следующими номерами ( ";
+
+                for(int i=0; i<_noDeals.Count; i++)
+                {
+                    noDealsStr += _noDeals[i].ToString();
+
+                    if (i < _noDeals.Count - 1)
+                        noDealsStr += ", ";
+                }
+                noDealsStr += " ) не имеют сделок на всем периоде теста.\n";
+                _totalActions.Add(() => _totalPDF.AddText(new Text( noDealsStr, setTxtBold)));
+            }
+
+            if (_exeption.Count > 0)
+            {
+                _totalActions.Add(() => _totalPDF.AddText(new Text("Рекомендуется удалить из портфеля элементы со следующими номерами.\n", setTxtBold)));
+                _totalActions.Add(() => _totalPDF.AddTable(ExeptionTable(corelations)));
+            }
             _totalActions.Add(() => _totalPDF.AddText(new Text("Распределение капитала в соответствии с весами.\n", setTxtBold)));
             _totalActions.Add(() => _totalPDF.AddTable(WeightTable(results)));
             _totalPDF.GenerateReport(_totalActions);
@@ -104,25 +130,28 @@ namespace ETSdebugDll.StatPortfel
             return double.NaN;
         }
         /// <summary>
+        /// Проверяем массив эквити на отсутствие сделок 
+        /// </summary>
+        bool CheckForEquityPoints(PortfelResultTest res)
+        {
+            bool deals = false;
+
+            for (int i = 0; i < res.Statistic.EquityPoint.Count; i++)
+            {
+                if (res.Statistic.EquityPoint[i] != 0 && res.Statistic.EquityPoint[i] != double.NaN)
+                {
+                    deals = true;
+                    break;
+                }
+            }
+            return deals;
+        }
+        /// <summary>
         /// Рисуем Equity
         /// </summary>
         void EquityLineChart(PortfelResultTest res, ClientReport rep, List<Action> actions)
         {
             if (res == null || res.Statistic.EquityPoint == null || res.Statistic.EquityPoint.Count == 0)
-                return;
-
-            bool allowTable = false;
-
-            for (int i = 0; i < res.Statistic.EquityPoint.Count; i++)
-            {
-                if( res.Statistic.EquityPoint[i] != 0 && res.Statistic.EquityPoint[i] != double.NaN )
-                {
-                    allowTable = true;  
-                    break;
-                }
-            }
-
-            if (!allowTable)
                 return;
 
             Statistic stat = res.Statistic;
@@ -257,7 +286,7 @@ namespace ETSdebugDll.StatPortfel
 
             foreach (PortfelResultTest res in results)
             {
-                if (_exeption.Contains(res.NumberRobot))
+                if (_exeption.Contains(res.NumberRobot) || _noDeals.Contains(res.NumberRobot))
                     continue;
                 robotNum.Add(res.NumberRobot);
                 Statistic stat = res.Statistic;
