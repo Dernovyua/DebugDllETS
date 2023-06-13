@@ -155,6 +155,7 @@ namespace EstimationStatNorm
                     up.value = oParams[i].Value;
                     est.userParam.Add(up);
                 }
+                est.CalcInRow( stat );
                 _stat.AddStat( est );
             }
         }
@@ -210,6 +211,18 @@ namespace EstimationStatNorm
             DesParamStratetgy.Change = "";
             DesParamStratetgy.NameStrategy = "EstimationStatNorm";
         }
+
+
+        //--- ETS version  
+        //public override void GetAttributes()
+        //{
+        //    DesParamStratetgy.Version = "21";
+        //    DesParamStratetgy.DateRelease = "16.01.2023";
+        //    DesParamStratetgy.DateChange = "14.03.2023";
+        //    DesParamStratetgy.Description = "";
+        //    DesParamStratetgy.Change = "";
+        //    DesParamStratetgy.NameStrategy = "EstimationStatNorm";
+        //}
     }
     /// <summary>
     ///  СТАТИСТИКА
@@ -223,6 +236,9 @@ namespace EstimationStatNorm
 
     public class EstimationStat
     {
+        public int maxLossCountInRow = 0;
+        public int maxProfCountInRow = 0;
+
         public double profit = 0; // Профит ( % )
         public double drawDown = 0; // Максимальная просадка ( % )
         public double recoveryFactor = 0; // Факттор восстановления
@@ -248,6 +264,40 @@ namespace EstimationStatNorm
         {
             userParam = new List<UserParam>();
             _forvard = new List<Forvard>();
+        }
+        /// <summary>
+        ///  СРасчет рядных показателей
+        /// </summary>
+        public void CalcInRow(Statistic stat)
+        {
+            maxLossCountInRow = 0;
+            maxProfCountInRow = 0;
+            int lossCount = 0;
+            int profCount = 0;
+
+            foreach( var d in stat.TradeDealsList )
+            {
+                if( d.ProfitLoss > 0 )
+                {
+                    if( lossCount > 0 )
+                    {
+                        if( lossCount > maxLossCountInRow )
+                            maxLossCountInRow = lossCount;
+                        lossCount = 0;
+                    }
+                    profCount++;
+                }
+                else
+                {
+                    if (profCount > 0)
+                    {
+                        if (profCount > maxProfCountInRow)
+                            maxProfCountInRow = profCount;
+                        profCount = 0;
+                    }
+                    lossCount++;
+                }
+            }
         }
     };
     /// <summary>
@@ -712,6 +762,16 @@ namespace EstimationStatNorm
             {
                 "Общее проскальзывание ( валюта )",
                 Math.Round( result.slippage, 4 ),
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Количество убыточных сделок подряд",
+                result.maxLossCountInRow,
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Количество прибыльных сделок подряд",
+                result.maxProfCountInRow,
             });
 
             // Данные по результатам форвард оптимизации
