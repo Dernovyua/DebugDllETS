@@ -293,8 +293,8 @@ namespace ETSdebugDll.PortfolioBuilder
         public override void GetAttributesPortfel()
         {
             DesParamStratetgy.Version = "1.0.0.1";
-            DesParamStratetgy.DateRelease = "23.03.2023";
-            DesParamStratetgy.DateChange = "23.03.2023";
+            DesParamStratetgy.DateRelease = new DateTime(2023, 3, 23);
+            DesParamStratetgy.DateChange = new DateTime(2023, 6, 13);
             DesParamStratetgy.Description = "";
             DesParamStratetgy.Change = "";
             DesParamStratetgy.NameStrategy = "PortfolioBuilder";

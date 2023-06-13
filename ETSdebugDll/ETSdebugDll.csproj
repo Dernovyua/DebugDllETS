@@ -4,7 +4,7 @@
     <TargetFramework>net6.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
-    <BaseOutputPath>C:\ETS 2.0 Net6.0\User Script Dll Debug</BaseOutputPath>
+    <BaseOutputPath>C:\1EX algo\User Script Dll Debug</BaseOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,13 +13,13 @@
 
   <ItemGroup>
     <Reference Include="Export">
-      <HintPath>..\..\..\ETS 2.0 Net6.0\Export.dll</HintPath>
+      <HintPath>..\..\..\1EX algo\Export.dll</HintPath>
     </Reference>
     <Reference Include="ScriptSolution">
-      <HintPath>..\..\..\ETS 2.0 Net6.0\ScriptSolution.dll</HintPath>
+      <HintPath>..\..\..\1EX algo\ScriptSolution.dll</HintPath>
     </Reference>
     <Reference Include="SourceEts">
-      <HintPath>..\..\..\ETS 2.0 Net6.0\SourceEts.dll</HintPath>
+      <HintPath>..\..\..\1EX algo\SourceEts.dll</HintPath>
     </Reference>
   </ItemGroup>
 

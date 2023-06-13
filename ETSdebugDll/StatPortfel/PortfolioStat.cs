@@ -169,7 +169,7 @@ namespace ETSdebugDll.StatPortfel
                 Point p = new Point( i, stat.EquityPoint[i] - stat.InitialCapital );
                 equity.points.Add(p);
 
-                if ( res.TimeFrameType == "День")
+                if ( res.TimeFrameType ==  SourceEts.EnumTimeFrame.Day )
                     set.date.Add(dt.AddDays(i));
                 else
                     set.date.Add(dt.AddMinutes(i * res.TimeFramePeriod ));
@@ -382,8 +382,8 @@ namespace ETSdebugDll.StatPortfel
         public override void GetAttributesPortfel()
         {
             DesParamStratetgy.Version = "1.0.0.0";
-            DesParamStratetgy.DateRelease = "20.03.2023";
-            DesParamStratetgy.DateChange = "20.03.2023";
+            DesParamStratetgy.DateRelease = new DateTime(2023, 3, 20);
+            DesParamStratetgy.DateChange = new DateTime(2023, 6, 13);
             DesParamStratetgy.Description = "";
             DesParamStratetgy.Change = "";
             DesParamStratetgy.NameStrategy = "PortfolioStat";

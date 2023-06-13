@@ -64,8 +64,8 @@ namespace EstimationStatNorm
                     continue;
 
                 Forvard f = new Forvard();
-                f._typeIs = frModel.PeriodTypeInSample;
-                f._typeOs = frModel.PeriodTypeOutOfSample;
+                f._typeIs = frModel.PeriodTypeInSample.ToString();
+                f._typeOs = frModel.PeriodTypeOutOfSample.ToString();
                 f._periodIs = frModel.PeriodInSample;
                 f._periodOs = frModel.PeriodOutOfSample;
                 f._estimate = 0;
@@ -205,24 +205,14 @@ namespace EstimationStatNorm
         public override void GetAttributes()
         {
             DesParamStratetgy.Version = "21";
-            DesParamStratetgy.DateRelease = "16.01.2023";
-            DesParamStratetgy.DateChange = "14.03.2023";
+            DesParamStratetgy.DateRelease = new DateTime(2023, 1, 16);
+            DesParamStratetgy.DateChange = new DateTime(2023, 6, 13 );
+            DesParamStratetgy.Author = "1EX: Vladimir Chernianskiy";
             DesParamStratetgy.Description = "";
             DesParamStratetgy.Change = "";
+            DesParamStratetgy.LinkFullDescription = "";
             DesParamStratetgy.NameStrategy = "EstimationStatNorm";
         }
-
-
-        //--- ETS version  
-        //public override void GetAttributes()
-        //{
-        //    DesParamStratetgy.Version = "21";
-        //    DesParamStratetgy.DateRelease = "16.01.2023";
-        //    DesParamStratetgy.DateChange = "14.03.2023";
-        //    DesParamStratetgy.Description = "";
-        //    DesParamStratetgy.Change = "";
-        //    DesParamStratetgy.NameStrategy = "EstimationStatNorm";
-        //}
     }
     /// <summary>
     ///  СТАТИСТИКА
@@ -512,7 +502,7 @@ namespace EstimationStatNorm
 
             CaclNormStat();
             CaclNormParams();
-            EstimationStat? result = ResultEstimationByClaster(_statContainer, 4, 0.6);
+            EstimationStat? result = ResultEstimationByClaster(_statContainer, 3, 0.5);
             string fName = _statContainer[0].symbol + "_";
             fName += _statContainer[0].tfType + "_";
             fName += _statContainer[0].tfPeriod;
