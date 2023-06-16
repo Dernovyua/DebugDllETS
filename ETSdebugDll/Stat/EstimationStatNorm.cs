@@ -19,6 +19,7 @@ using Export.DrawingCharts;
 using System.Drawing;
 using static Export.DrawingCharts.LineETS;
 using Point = Export.DrawingCharts.LineETS.Point;
+using SourceEts;
 
 namespace EstimationStatNorm
 {
@@ -132,16 +133,17 @@ namespace EstimationStatNorm
                 est.averageDeal = stat.AvaregeProfitLossPercent;
                 est.recoveryFactor = stat.FactorRecovery;
                 est.dealCount = stat.TradeDealsList.Count;
-                est.drawDown = Math.Abs( stat.MaxDrownDownPercent );
+                est.drawDown = Math.Abs(stat.MaxDrownDownPercent);
+                est.drawDownAbs = Math.Abs(stat.MaxAbsDrownDownPercent);
                 est.commission = stat.TotalComission;
                 est.slippage = stat.TotalSlippage;
                 est.yearProfit = stat.YearProfitLossPercent;
                 est.profitDeals = stat.ProfitDealsPercents;
                 est.symbol = report.Symbol;
 
-                if (report.TimeFrameType.Equals("Минута"))
+                if (report.TimeFrameType == EnumTimeFrame.Minute )
                     est.tfType = "Minute";
-                else if (report.TimeFrameType.Equals("День"))
+                else if (report.TimeFrameType == EnumTimeFrame.Day)
                     est.tfType = "Day";
                 else
                     est.tfType = "Unknown";
@@ -231,6 +233,7 @@ namespace EstimationStatNorm
 
         public double profit = 0; // Профит ( % )
         public double drawDown = 0; // Максимальная просадка ( % )
+        public double drawDownAbs = 0; // Абсолютная просадка ( % )
         public double recoveryFactor = 0; // Факттор восстановления
         public double averageDeal = 0; // Средняя прибыль на сделку ( % )
         public double dealCount = 0; // Количество сделок 
@@ -731,7 +734,12 @@ namespace EstimationStatNorm
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Максимальная просадка ( % )",
-                result.drawDown,
+                 Math.Round( result.drawDown, 4 ),
+            });
+            tableMdlStat.TableData.Add(new List<object>()
+            {
+                "Абсолютная просадка ( % )",
+                 Math.Round( result.drawDownAbs, 4 ),
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
