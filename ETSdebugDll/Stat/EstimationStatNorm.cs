@@ -708,23 +708,23 @@ namespace EstimationStatNorm
 
             tableMdlStat.TableData.Add(new List<object>()
             {
-                "Доходность за период ( % )",  
-                result.profit,
+                "Доходность за период ( % )",
+                Math.Round( result.profit, 2 ),
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Среднегодовая доходность ( % )",
-                result.yearProfit
+                Math.Round(result.yearProfit, 2 ),
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Средняя прибыль на сделку ( % )",
-                result.averageDeal,
+                Math.Round(result.averageDeal, 4),
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Процент прибыльных сделок ( % )",
-                result.profitDeals
+                Math.Round(result.profitDeals, 2 ),
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
@@ -734,17 +734,17 @@ namespace EstimationStatNorm
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Максимальная просадка ( % )",
-                 Math.Round( result.drawDown, 4 ),
+                 Math.Round( result.drawDown, 2 ),
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Абсолютная просадка ( % )",
-                 Math.Round( result.drawDownAbs, 4 ),
+                 Math.Round( result.drawDownAbs, 2 ),
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "комиссия на сделку ( % )",
-                Math.Round( _mdl._userSetCommis, 4 ),
+                Math.Round( _mdl._userSetCommis, 2 ),
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
