@@ -66,7 +66,7 @@ namespace ETSdebugDll.StatPortfel
 
             foreach (PortfelResultTest res in results)
             {
-                if( !CheckForEquityPoints(res) )
+                if (!CheckForEquityPoints(res))
                 {
                     _noDeals.Add(res.NumberRobot);
                     continue;
@@ -78,12 +78,12 @@ namespace ETSdebugDll.StatPortfel
             setTxtBold.FontName = "Arial";
             setTxtBold.TextAligment = Export.Enums.Aligment.Left;
             setTxtBold.Bold = true;
-            
-            if( _noDeals.Count > 0)
+
+            if (_noDeals.Count > 0)
             {
                 string noDealsStr = "Элементы со следующими номерами ( ";
 
-                for(int i=0; i<_noDeals.Count; i++)
+                for (int i = 0; i < _noDeals.Count; i++)
                 {
                     noDealsStr += _noDeals[i].ToString();
 
@@ -91,7 +91,7 @@ namespace ETSdebugDll.StatPortfel
                         noDealsStr += ", ";
                 }
                 noDealsStr += " ) не имеют сделок на всем периоде теста.\n";
-                _totalActions.Add(() => _totalPDF.AddText(new Text( noDealsStr, setTxtBold)));
+                _totalActions.Add(() => _totalPDF.AddText(new Text(noDealsStr, setTxtBold)));
             }
 
             if (_exeption.Count > 0)
@@ -100,7 +100,11 @@ namespace ETSdebugDll.StatPortfel
                 _totalActions.Add(() => _totalPDF.AddTable(ExeptionTable(corelations)));
             }
             _totalActions.Add(() => _totalPDF.AddText(new Text("Распределение капитала в соответствии с весами.\n", setTxtBold)));
-            _totalActions.Add(() => _totalPDF.AddTable(WeightTable(results)));
+            TableModel mdl = WeightTable(results);
+
+            if (mdl != null)
+                _totalActions.Add(() => _totalPDF.AddTable(mdl));
+
             _totalPDF.GenerateReport(_totalActions);
             _totalPDF.SaveDocument();
             return new List<List<int>>();
@@ -110,15 +114,15 @@ namespace ETSdebugDll.StatPortfel
         /// </summary>
         double CalcAveragePortfolioCorrelation(int robotNum, List<CorelationModel> corelations)
         {
-            if(corelations.Count <= 1)
+            if (corelations.Count <= 1)
                 return double.NaN;
             double res = 0;
 
             foreach (CorelationModel cor in corelations)
             {
                 if (robotNum == cor.NumberRobot)
-                {                  
-                    for(int i=0; i<cor.CorValues.Count; i++)
+                {
+                    for (int i = 0; i < cor.CorValues.Count; i++)
                     {
                         if (cor.CorValues[i].NumberRobot != robotNum)
                             res += cor.CorValues[i].Corelation;
@@ -166,13 +170,13 @@ namespace ETSdebugDll.StatPortfel
 
             for (int i = 0; i < stat.EquityPoint.Count; i++)
             {
-                Point p = new Point( i, stat.EquityPoint[i] - stat.InitialCapital );
+                Point p = new Point(i, stat.EquityPoint[i] - stat.InitialCapital);
                 equity.points.Add(p);
 
-                if ( res.TimeFrameType ==  SourceEts.EnumTimeFrame.Day )
+                if (res.TimeFrameType == SourceEts.EnumTimeFrame.Day)
                     set.date.Add(dt.AddDays(i));
                 else
-                    set.date.Add(dt.AddMinutes(i * res.TimeFramePeriod ));
+                    set.date.Add(dt.AddMinutes(i * res.TimeFramePeriod));
             }
             data.Add(equity);
             actions.Add(() => rep.AddChart(new Chart(new Line(new LineETS(set, data)))));
@@ -194,22 +198,22 @@ namespace ETSdebugDll.StatPortfel
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Доходность за период ( % )",
-                stat.RealNetProfitLossPercent
+                Math.Round(stat.RealNetProfitLossPercent, 2)
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Среднегодовая доходность ( % )",
-                stat.YearProfitLossPercent
+                Math.Round(stat.YearProfitLossPercent, 2)
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Средняя прибыль на сделку ( % )",
-                stat.AvaregeProfitLossPercent,
+                Math.Round(stat.AvaregeProfitLossPercent, 4 )
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Процент прибыльных сделок ( % )",
-                stat.ProfitDealsPercents
+                Math.Round(stat.ProfitDealsPercents, 2)
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
@@ -219,12 +223,12 @@ namespace ETSdebugDll.StatPortfel
             tableMdlStat.TableData.Add(new List<object>()
             {
                 "Максимальная просадка ( % )",
-                stat.MaxDrownDownPercent
+                Math.Round(stat.MaxDrownDownPercent, 2)
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
-                "Максимальная абсолютная просадка ( % )",
-                stat.MaxAbsDrownDownPercent
+                "Абсолютная просадка ( % )",
+                Math.Round(stat.MaxAbsDrownDownPercent, 2)
             });
             tableMdlStat.TableData.Add(new List<object>()
             {
@@ -266,7 +270,7 @@ namespace ETSdebugDll.StatPortfel
 
             foreach (int r in _exeption)
             {
-                double avgCor = CalcAveragePortfolioCorrelation( r, corelations );
+                double avgCor = CalcAveragePortfolioCorrelation(r, corelations);
                 tableMdlStat.TableData.Add(new List<object>()
                 {
                     r, Math.Round(avgCor, 2)
@@ -277,7 +281,7 @@ namespace ETSdebugDll.StatPortfel
         /// <summary>
         /// Рассчет весовых коэф. и формирование таблицы 
         /// </summary>
-        TableModel WeightTable(List<PortfelResultTest> results)
+        TableModel? WeightTable(List<PortfelResultTest> results)
         {
             List<int> robotNum = new List<int>();
             List<double> volaty = new List<double>();
@@ -286,22 +290,34 @@ namespace ETSdebugDll.StatPortfel
 
             foreach (PortfelResultTest res in results)
             {
-                if (_exeption.Contains(res.NumberRobot) || _noDeals.Contains(res.NumberRobot))
+                //if (_exeption.Contains(res.NumberRobot) || _noDeals.Contains(res.NumberRobot))
+                if (_noDeals.Contains(res.NumberRobot))
                     continue;
                 robotNum.Add(res.NumberRobot);
                 Statistic stat = res.Statistic;
                 double eqMax = stat.EquityPoint.Max();
                 double eqMin = stat.EquityPoint.Min();
-                volaty.Add((eqMax - eqMin) * 100 / _entrySize );
+                volaty.Add((eqMax - eqMin) * 100 / _entrySize);
             }
+
+            if (volaty.Count <= 0)
+                return null;
+
             double volatyMax = volaty.Max();
 
-            for ( int i=0; i < volaty.Count; i++)
+            for (int i = 0; i < volaty.Count; i++)
             {
-                weight.Add(1/(volaty[i] / volatyMax));
+                weight.Add(1 / (volaty[i] / volatyMax));
             }
+
+            if (weight.Count <= 0)
+                return null;
+
             double normSum = weight.Sum();
-            
+
+            if (normSum == 0 || normSum == double.NaN )
+                return null;
+
             for (int i = 0; i < weight.Count; i++)
             {
                 weight[i] /= normSum;
@@ -326,7 +342,7 @@ namespace ETSdebugDll.StatPortfel
             return tableMdlStat;
         }
         /// <summary>
-        ///  Добавоение статистики в отчет по опр. роботу
+        ///  Добавление статистики в отчет по опр. роботу
         /// </summary>
         void AddToReport(PortfelResultTest res, List<CorelationModel> corelations )
         {

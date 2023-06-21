@@ -553,16 +553,27 @@ namespace EstimationStatNorm
             equity.width = 2;
             equity.color = Color.Blue;
             DateTime dt = _mdl._startDate;
+            TimeSpan delta = _mdl._endDate - dt;
+            double dayStep = (double)delta.Days / (double)result.equity.Count;
+            double minStep = (double)delta.TotalMinutes / (double)result.equity.Count;
+            double minCount = 0;
+            double dayCount = 0;
 
             for (int i = 0; i < result.equity.Count; i++)
             {
                 Point p = new Point(i, result.equity[i] - _mdl._capital );
                 equity.points.Add(p);
 
-                if( result.tfType == "Day")
-                    set.date.Add(dt.AddDays(i));
+                if (result.tfType == "Day")
+                {
+                    set.date.Add(dt.AddDays((int)dayCount));
+                    dayCount += dayStep;
+                }
                 else
-                    set.date.Add(dt.AddMinutes(i * result.tfPeriod));
+                {
+                    set.date.Add(dt.AddMinutes((int)minCount));
+                    minCount += minStep;
+                }
             }
             data.Add(equity);
             actions.Add(() => rep.AddChart(new Chart(new Line(new LineETS(set, data)))));
