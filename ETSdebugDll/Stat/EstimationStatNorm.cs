@@ -199,7 +199,7 @@ namespace EstimationStatNorm
             list.Add(new UserParamModel { Name = "Profit ( % ) >= ", Value = 1, Weight = 1,  IsOptimization = false });
             list.Add(new UserParamModel { Name = "Drawdown ( % ) <= ", Value = 50, Weight = 1, IsOptimization = false });
             list.Add(new UserParamModel { Name = "Recovery Factor >= ", Value = 1, Weight = 1, IsOptimization = false });
-            list.Add(new UserParamModel { Name = "Deal profit ( % ) >= ", Value = 0.3, Weight = 1, IsOptimization = false });
+            list.Add(new UserParamModel { Name = "Average profit ( % ) >= ", Value = 0.3, Weight = 1, IsOptimization = false });
             list.Add(new UserParamModel { Name = "Добавить в портфель", ValueBool = false, IsBool = true, IsOptimization = false });
             return list;
         }
