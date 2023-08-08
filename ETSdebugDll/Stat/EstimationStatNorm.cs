@@ -157,6 +157,7 @@ namespace EstimationStatNorm
                     up.value = oParams[i].Value;
                     est.userParam.Add(up);
                 }
+                
                 est.CalcInRow( stat );
                 _stat.AddStat( est );
             }
@@ -707,6 +708,34 @@ namespace EstimationStatNorm
                      result.userParam[i].name,
                      result.userParam[i].value
                  });
+            }
+
+            for (int i = 0; i < _mdl.RobotParams.ParamOptimizations.Count; i++)
+            {
+                UserParam up = result.userParam.Find(x => x.name == _mdl.RobotParams.ParamOptimizations[i].NameParam);
+               
+                if( up == null )
+                {
+                    string val = "";
+
+                    if(_mdl.RobotParams.ParamOptimizations[i].IsStirng)
+                        val = _mdl.RobotParams.ParamOptimizations[i].ValueString;
+                    else
+                    {
+                        if (_mdl.RobotParams.ParamOptimizations[i].Value != 0)
+                            val = _mdl.RobotParams.ParamOptimizations[i].Value.ToString();
+                        else if (_mdl.RobotParams.ParamOptimizations[i].ValueInt != 0)
+                            val = _mdl.RobotParams.ParamOptimizations[i].ValueInt.ToString();
+                        else
+                            val = _mdl.RobotParams.ParamOptimizations[i].ValueBool ? "TRUE" : "FALSE";
+                    }
+
+                    tableMdl.TableData.Add(new List<object>()
+                    {
+                        _mdl.RobotParams.ParamOptimizations[i].NameParam,
+                        val
+                    });
+                }
             }
             //данные для таблицы стат. показателей
             HeaderTable hTblStat = new HeaderTable();
