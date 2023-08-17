@@ -18,6 +18,7 @@ using Export.Enums;
 using Export.DrawingCharts;
 using System.Drawing;
 using SourceEts;
+using System.Globalization;
 
 namespace MODEL_EVALUATION
 {
@@ -103,6 +104,7 @@ namespace MODEL_EVALUATION
         {
             var uStat = UserStatistics;
             List<Dictionary<string, double>> resToPortfolio = new List<Dictionary<string, double>>();
+            _stat.LoadModelCollection(RobotParams.ParamOptimizations[0].ValueString);
             _stat.BuildReport(RobotParams.ParamOptimizations[0].ValueString );
             _stat = new StatContainer(this);
             return resToPortfolio;
@@ -175,14 +177,23 @@ namespace MODEL_EVALUATION
 
     };
     /// <summary>
+    /// Модель
+    /// </summary>
+    public class Model
+    {
+        public int tCount = 0;
+        public double lProb = 0;
+        public double sProb = 0;
+        public double nProb = 0;
+    }
+    /// <summary>
     ///  СТАТИСТИКА
     /// </summary>
     public class StatContainer
     {
         ModelEvaluation? _mdl = null;
-        bool _addStrategyInfo = true;
-        bool _addStrategyInfoTotal = true;
         List<EstimationStat> _statContainer;
+        List<Model> _modelCollection = new List<Model>();
         string[] _statNames = { "Profit", "DD", "Recovery", "Avg. Deal", "Deal Count" };
 
         public StatContainer(ModelEvaluation mdl)
@@ -191,32 +202,39 @@ namespace MODEL_EVALUATION
             _statContainer = new List<EstimationStat>();
         }
         /// <summary>
+        ///  Загружаем коллекцию моделей
+        /// </summary>
+        public void LoadModelCollection(string fName)
+        {
+            _modelCollection = new List<Model>();
+
+            using (StreamReader sr = new StreamReader(fName, System.Text.Encoding.Default))
+            {
+                string line;
+
+                while ((line = sr.ReadLine()) != null)
+                {
+                    string[] words = line.Split('|');
+                    
+                    if (words[0].Equals("PATTERN"))
+                    {
+                        Model m  = new Model();
+                        m.lProb = Convert.ToDouble(words[1].Replace(',', '.'), CultureInfo.InvariantCulture.NumberFormat);
+                        m.sProb = Convert.ToDouble(words[2].Replace(',', '.'), CultureInfo.InvariantCulture.NumberFormat);
+                        m.nProb = Convert.ToDouble(words[3].Replace(',', '.'), CultureInfo.InvariantCulture.NumberFormat);
+                        m.tCount = int.Parse(words[4]);
+                        _modelCollection.Add(m);    
+                    }
+                }
+            }
+        }
+        /// <summary>
         ///  Добавляем статистку по проходу
         /// </summary>
         public void AddStat(EstimationStat stat)
         {
             _statContainer.Add(stat);
         } 
-        /// <summary>
-        /// Нормализация параметра
-        /// </summary>
-        double CalcNorm(double value, double min, double max)
-        {
-            double norm = max - min;
-
-            if (norm <= 0)
-                return 0; //double.NaN;
-
-            double res = (value - min) / norm;
-
-            if (res < 0)
-                res = 0;
-
-            if (res > 1)
-                res = 1;
-
-            return res;
-        }
         /// <summary>
         /// Результирующий отчет
         /// </summary>
@@ -243,11 +261,20 @@ namespace MODEL_EVALUATION
         void ModifyModelFile( string modelPath )
         {
             string res = "EVALUATION";
-            
-            for( int i=0; i<_statContainer.Count; i++ )
+            var uStat = _mdl.UserStatistics;
+
+            for ( int i=0; i<_statContainer.Count; i++ )
             {
-                res += "|";
-                res += _statContainer[i].userParam[0].value.ToString();
+                int pid = (int)_statContainer[i].userParam[0].value;
+                double prc = uStat[2].Value / 100;
+                int count = (int)uStat[1].Value;
+
+                if ( _modelCollection[pid].tCount >= count &&
+                   ( _modelCollection[pid].lProb >= prc || _modelCollection[pid].sProb >= prc ))
+                {
+                    res += "|";
+                    res += _statContainer[i].userParam[0].value.ToString();
+                }
             }
             File.AppendAllText( modelPath, res );
         }
