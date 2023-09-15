@@ -1,4 +1,10 @@
-﻿using System;
+﻿
+//-- Для мануальной оценки , в отчет заносим среднюю величину корреляции по диаграммам доходности и основные показатели статистики.
+//   Усредненный коэф. корреляции расчитываем  как среднюю величину корреляции доходности робота между всеми элементами портфеля.     
+//   Расчитываем и заносим в таблицу волатильность (  % ) по диапазону диаграммы доходности.
+//   Исходя из показателей волатильности расчитываем весовые коэф. и удельный объем входа на каждый элемент портфеля
+
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -336,7 +342,7 @@ namespace ETSdebugDll.StatPortfel
             {
                 tableMdlStat.TableData.Add(new List<object>()
                 {
-                    robotNum[i], Math.Round( volaty[i], 2), Math.Round( weight[i], 2), Math.Round( sample[i], 2)
+                    robotNum[i], Math.Round( volaty[i], 2), Math.Round( weight[i], 5), Math.Round( sample[i], 2)
                 });
             }
             return tableMdlStat;
