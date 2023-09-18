@@ -194,7 +194,7 @@ namespace ETSdebugDll.StatPortfel
         {
             Statistic stat = res.Statistic;
             HeaderTable hTblStat = new HeaderTable();
-            hTblStat.Headers = new List<string> { "", "" };
+            hTblStat.Headers = new List<string> { "Наименование", "Значение" };
             TableSetting tableSetStat = new TableSetting();
             tableSetStat.BodySetting.SettingText.TextAligment = Export.Enums.Aligment.Left;
             tableSetStat.TableBorderSetting = new TableBorderSetting() { BorderLineStyle = SettingBorderLineStyle.None };
